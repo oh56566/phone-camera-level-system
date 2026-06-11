@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VidToLevel Viewer</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="viewport-panel">
+        <div id="viewport" class="viewport"></div>
+        <div id="empty-state" class="empty-state hidden">
+          <strong>No reconstruction loaded</strong>
+          <span>Start the viewer with a run folder that contains a COLMAP sparse model.</span>
+        </div>
+      </section>
+
+      <aside class="side-panel" aria-label="Viewer controls">
+        <header class="brand-row">
+          <div>
+            <h1>VidToLevel Viewer</h1>
+            <p id="project-name">No project</p>
+          </div>
+          <select id="project-select" aria-label="Project"></select>
+        </header>
+
+        <section class="panel-section">
+          <h2>Layers</h2>
+          <label>Points <input id="layer-points" type="checkbox" checked /></label>
+          <label>Cameras <input id="layer-cameras" type="checkbox" checked /></label>
+          <label>Path <input id="layer-path" type="checkbox" checked /></label>
+        </section>
+
+        <section class="panel-section">
+          <h2>Render</h2>
+          <label>
+            Color mode
+            <select id="color-mode" aria-label="Point color mode">
+              <option value="rgb">RGB</option>
+              <option value="error">Error</option>
+              <option value="track">Observations</option>
+              <option value="session">Session</option>
+            </select>
+          </label>
+          <label>
+            Point size
+            <input id="point-size" type="range" min="1" max="8" value="2" />
+          </label>
+          <label>
+            Frustum scale
+            <input id="frustum-scale" type="range" min="1" max="100" value="20" />
+          </label>
+        </section>
+
+        <section class="panel-section selection-card">
+          <h2>Selection</h2>
+          <div id="selection-body" class="selection-body">None</div>
+        </section>
+
+        <section class="panel-section metrics-grid">
+          <div>
+            <span>Cameras</span>
+            <strong id="metric-cameras">0</strong>
+          </div>
+          <div>
+            <span>Points</span>
+            <strong id="metric-points">0</strong>
+          </div>
+          <div>
+            <span>Visible</span>
+            <strong id="metric-visible-cameras">0</strong>
+          </div>
+          <div>
+            <span>Coverage</span>
+            <strong id="metric-coverage">0</strong>
+          </div>
+        </section>
+
+        <section class="panel-section coverage-card">
+          <h2>Coverage</h2>
+          <canvas id="coverage-canvas" width="260" height="180"></canvas>
+        </section>
+      </aside>
+
+      <section class="timeline">
+        <input id="timeline-range" type="range" min="0" max="0" value="0" aria-label="Timeline" />
+        <button id="play-toggle" type="button">Play</button>
+      </section>
+
+      <footer class="status-bar">
+        <span id="status-project">Idle</span>
+        <span id="status-stage">Static viewer</span>
+        <span id="status-cameras">0 cameras</span>
+        <span id="status-points">0 points</span>
+      </footer>
+    </main>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/assets/vendor/three.module.js",
+          "three/addons/": "/assets/vendor/examples/jsm/"
+        }
+      }
+    </script>
+    <script type="module" src="/assets/app.js"></script>
+  </body>
+</html>

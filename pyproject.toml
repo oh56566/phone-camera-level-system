@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vidtolevel"
+version = "0.1.0"
+description = "Phone-video photogrammetry pipeline for UE5-ready level assets."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.111",
+  "numpy>=1.26",
+  "opencv-python>=4.9",
+  "pydantic>=2.7",
+  "tqdm>=4.66",
+  "uvicorn>=0.30",
+  "watchdog>=4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+]
+
+[project.scripts]
+vidtolevel = "vidtolevel.cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["vidtolevel*"]
+
+[tool.setuptools.package-data]
+"vidtolevel.viewer" = ["web/*", "web/vendor/*", "web/vendor/examples/jsm/controls/*"]
