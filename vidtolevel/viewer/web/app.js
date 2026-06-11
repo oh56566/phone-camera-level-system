@@ -12,6 +12,8 @@ const dom = {
   layerPath: document.querySelector("#layer-path"),
   colorMode: document.querySelector("#color-mode"),
   pointSize: document.querySelector("#point-size"),
+  meshMode: document.querySelector("#mesh-mode"),
+  meshOpacity: document.querySelector("#mesh-opacity"),
   frustumScale: document.querySelector("#frustum-scale"),
   selectionBody: document.querySelector("#selection-body"),
   metricCameras: document.querySelector("#metric-cameras"),
@@ -38,6 +40,8 @@ const state = {
   playTimer: null,
   pointObject: null,
   meshObject: null,
+  meshFillObject: null,
+  meshWireObject: null,
   cameraGroup: new THREE.Group(),
   frustumGroup: new THREE.Group(),
   pathLine: null,
@@ -95,6 +99,12 @@ const previewMeshMaterial = new THREE.MeshBasicMaterial({
   side: THREE.DoubleSide,
   depthWrite: false,
 });
+const previewMeshWireMaterial = new THREE.LineBasicMaterial({
+  color: 0xb9eef0,
+  transparent: true,
+  opacity: 0.72,
+  depthWrite: false,
+});
 const frustumMaterial = new THREE.LineBasicMaterial({ color: 0x4cc9b0, transparent: true, opacity: 0.68 });
 const pathMaterial = new THREE.LineBasicMaterial({ color: 0xe8a84f, transparent: true, opacity: 0.9 });
 const pathIssueMaterial = new THREE.LineBasicMaterial({ color: 0xee6a5f, transparent: true, opacity: 1.0 });
@@ -129,6 +139,8 @@ function bindControls() {
       state.pointObject.material.size = Number(dom.pointSize.value) / 100;
     }
   });
+  dom.meshMode.addEventListener("change", updateMeshDisplay);
+  dom.meshOpacity.addEventListener("input", updateMeshDisplay);
   dom.frustumScale.addEventListener("input", rebuildCameraGraphics);
   dom.timelineRange.addEventListener("input", () => setVisibleCameraCount(Number(dom.timelineRange.value) + 1));
   dom.playToggle.addEventListener("click", togglePlayback);
@@ -228,9 +240,10 @@ function clearSceneData() {
   }
   if (state.meshObject) {
     scene.remove(state.meshObject);
-    state.meshObject.geometry.dispose();
-    state.meshObject.material.dispose();
+    disposeObjectTree(state.meshObject);
     state.meshObject = null;
+    state.meshFillObject = null;
+    state.meshWireObject = null;
   }
   state.cameraGroup.clear();
   state.frustumGroup.clear();
@@ -294,11 +307,43 @@ async function loadMeshPreview(meshUrl) {
   if (!geometry) {
     return;
   }
-  state.meshObject = new THREE.Mesh(geometry, previewMeshMaterial.clone());
+  const group = new THREE.Group();
+  group.name = "preview-mesh";
+
+  const fill = new THREE.Mesh(geometry, previewMeshMaterial.clone());
+  fill.name = "preview-mesh-fill";
+  const wire = new THREE.LineSegments(
+    new THREE.WireframeGeometry(geometry),
+    previewMeshWireMaterial.clone(),
+  );
+  wire.name = "preview-mesh-wire";
+
+  group.add(fill);
+  group.add(wire);
+  state.meshObject = group;
+  state.meshFillObject = fill;
+  state.meshWireObject = wire;
   state.meshObject.name = "preview-mesh";
   state.meshObject.renderOrder = -1;
   scene.add(state.meshObject);
   updateLayerVisibility();
+}
+
+function disposeObjectTree(object) {
+  object.traverse((child) => {
+    if (child.geometry) {
+      child.geometry.dispose();
+    }
+    if (child.material) {
+      if (Array.isArray(child.material)) {
+        for (const material of child.material) {
+          material.dispose();
+        }
+      } else {
+        child.material.dispose();
+      }
+    }
+  });
 }
 
 function parseObjGeometry(text) {
@@ -514,6 +559,7 @@ function updateLayerVisibility() {
   if (state.meshObject) {
     state.meshObject.visible = dom.layerMesh.checked;
   }
+  updateMeshDisplay();
   state.cameraGroup.visible = dom.layerCameras.checked;
   state.frustumGroup.visible = dom.layerCameras.checked;
   if (state.pathLine) {
@@ -521,6 +567,24 @@ function updateLayerVisibility() {
   }
   if (state.pathIssueLine) {
     state.pathIssueLine.visible = dom.layerPath.checked;
+  }
+}
+
+function updateMeshDisplay() {
+  if (!state.meshObject) {
+    return;
+  }
+  const enabled = dom.layerMesh.checked;
+  const mode = dom.meshMode.value;
+  const opacity = Number(dom.meshOpacity.value) / 100;
+  state.meshObject.visible = enabled;
+  if (state.meshFillObject) {
+    state.meshFillObject.visible = enabled && (mode === "shaded" || mode === "both");
+    state.meshFillObject.material.opacity = opacity;
+  }
+  if (state.meshWireObject) {
+    state.meshWireObject.visible = enabled && (mode === "wire" || mode === "both");
+    state.meshWireObject.material.opacity = Math.min(1.0, opacity + 0.25);
   }
 }
 

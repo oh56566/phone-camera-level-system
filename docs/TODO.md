@@ -46,6 +46,7 @@ the project can resume without relying on conversation context.
 - V2: COLMAP mapper snapshot CLI/settings. Done.
 - V2: Automatic run/snapshot folder discovery. Done.
 - V3: simple OBJ mesh preview. Done.
+- V3: mesh preview render controls for shaded/wire/both modes and opacity. Done.
 - V3: dense point downsampling and textured GLB preview.
 - V4: session toggles, session colors, and coverage diff mode.
 - V5: view presets, measurement tool, screenshot export, settings persistence.
@@ -57,6 +58,7 @@ the project can resume without relying on conversation context.
 
 ## Completed Recently
 
+- Viewer V3 mesh preview controls: first available `.obj` mesh can be viewed as shaded, wire, or both with adjustable opacity.
 - Viewer V3 simple mesh preview: first available `.obj` mesh is served and rendered as a translucent viewport layer.
 - Viewer V1 diagnostics summary: side panel shows path issue counts by reason.
 - Viewer V2 compact sparse diffs: project WebSocket reports camera/point count deltas and ID samples.

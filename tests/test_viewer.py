@@ -45,6 +45,8 @@ class ViewerParserTests(unittest.TestCase):
         self.assertIn('id="status-live"', index)
         self.assertIn('id="diagnostic-body"', index)
         self.assertIn('id="layer-mesh"', index)
+        self.assertIn('id="mesh-mode"', index)
+        self.assertIn('id="mesh-opacity"', index)
         self.assertNotIn("unpkg.com", index)
         self.assertTrue(
             (REPO_ROOT / "vidtolevel" / "viewer" / "web" / "vendor" / "three.module.js").exists()
