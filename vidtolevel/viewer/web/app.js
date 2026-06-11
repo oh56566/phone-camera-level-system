@@ -617,7 +617,14 @@ async function updateSparseSnapshot(payload) {
     return;
   }
   state.snapshotSignature = signature;
-  dom.statusLive.textContent = `Sparse: ${payload.cameraCount} cameras · refreshing`;
+  const diff = payload.diff || {};
+  if (diff.initial === false) {
+    const cameraDelta = Number(diff.cameraCountDelta || 0);
+    const pointDelta = Number(diff.pointCountDelta || 0);
+    dom.statusLive.textContent = `Sparse: ${formatDelta(cameraDelta)} cameras · ${formatDelta(pointDelta)} points`;
+  } else {
+    dom.statusLive.textContent = `Sparse: ${payload.cameraCount} cameras · refreshing`;
+  }
   if (state.snapshotRefreshing) {
     return;
   }
@@ -646,6 +653,13 @@ function updateLiveJobs(payload) {
   const job = jobs[0];
   const label = [job.id, job.status, job.message].filter(Boolean).join(" · ");
   dom.statusLive.textContent = `Live: ${label}`;
+}
+
+function formatDelta(value) {
+  if (value > 0) {
+    return `+${value.toLocaleString()}`;
+  }
+  return value.toLocaleString();
 }
 
 function resize() {

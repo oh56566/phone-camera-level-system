@@ -192,8 +192,10 @@ class ViewerParserTests(unittest.TestCase):
     def test_sparse_snapshot_signature_tracks_model_file_changes(self) -> None:
         from vidtolevel.viewer.server.colmap_parser import read_sparse_model
         from vidtolevel.viewer.server.live import (
+            SparseSnapshotState,
             build_sparse_snapshot_payload,
             sparse_model_signature,
+            sparse_snapshot_diff,
         )
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -210,10 +212,23 @@ class ViewerParserTests(unittest.TestCase):
             self.assertEqual(payload["type"], "sparse_snapshot")
             self.assertEqual(payload["cameraCount"], 2)
             self.assertEqual(payload["pointCount"], 2)
+            self.assertTrue(payload["diff"]["initial"])
 
             (sparse / "points3D.bin").write_bytes((sparse / "points3D.bin").read_bytes() + b" ")
             second = sparse_model_signature(sparse)
             self.assertNotEqual(first, second)
+
+            diff = sparse_snapshot_diff(
+                SparseSnapshotState("a", frozenset({1, 2}), frozenset({10, 11})),
+                SparseSnapshotState("b", frozenset({2, 3}), frozenset({11, 12, 13})),
+            )
+            self.assertFalse(diff["initial"])
+            self.assertEqual(diff["cameraCountDelta"], 0)
+            self.assertEqual(diff["pointCountDelta"], 1)
+            self.assertEqual(diff["addedCameraIds"], [3])
+            self.assertEqual(diff["removedCameraIds"], [1])
+            self.assertEqual(diff["addedPointCount"], 2)
+            self.assertEqual(diff["removedPointCount"], 1)
 
 
 def _write_sparse_model(path: Path) -> Path:

@@ -42,7 +42,7 @@ the project can resume without relying on conversation context.
 - V2: WebSocket job state. Done.
 - V2: Pipeline stage event stream. Done.
 - V2: Sparse snapshot watching. Done.
-- V2: Compact live camera/point diff messages.
+- V2: Compact live camera/point diff messages. Done.
 - V3: dense point downsampling and mesh-to-GLB preview.
 - V4: session toggles, session colors, and coverage diff mode.
 - V5: view presets, measurement tool, screenshot export, settings persistence.
@@ -55,6 +55,7 @@ the project can resume without relying on conversation context.
 ## Completed Recently
 
 - Viewer V1 diagnostics summary: side panel shows path issue counts by reason.
+- Viewer V2 compact sparse diffs: project WebSocket reports camera/point count deltas and ID samples.
 - Pipeline stage events: job/input/frames/sfm/mvs/optimize events are stored in SQLite and surfaced in Viewer live status.
 - Viewer V2 live job status: `/ws/jobs` streams SQLite job state to the status bar.
 - Viewer V2 sparse snapshot status: `/ws/{project_id}` detects COLMAP sparse model changes and triggers viewer refresh.

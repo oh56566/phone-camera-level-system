@@ -26,6 +26,7 @@ from vidtolevel.viewer.server.diagnostics import annotate_camera_path, summarize
 from vidtolevel.viewer.server.live import (
     build_jobs_payload,
     build_sparse_snapshot_payload,
+    sparse_snapshot_state,
     sparse_model_signature,
 )
 from vidtolevel.viewer.server.thumbnails import build_cached_thumbnail
@@ -182,25 +183,34 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
         project = _project_or_404(projects, project_id)
         await websocket.accept()
         last_payload = ""
+        previous_state = None
         poll_interval = max(0.5, min(interval, 10.0))
         try:
             while True:
                 try:
-                    payload = build_sparse_snapshot_payload(
-                        project_id=project.id,
-                        sparse_model=project.sparse_model,
-                        model=_load_project_model(project),
-                    )
+                    model = _load_project_model(project)
+                    current_state = sparse_snapshot_state(project.sparse_model, model)
+                    if previous_state is None or current_state.signature != previous_state.signature:
+                        payload = build_sparse_snapshot_payload(
+                            project_id=project.id,
+                            sparse_model=project.sparse_model,
+                            model=model,
+                            previous_state=previous_state,
+                        )
+                        previous_state = current_state
+                    else:
+                        payload = None
                 except Exception as exc:
                     payload = {
                         "type": "sparse_snapshot_error",
                         "project": project.id,
                         "message": str(exc),
                     }
-                serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True)
-                if serialized != last_payload:
-                    await websocket.send_text(serialized)
-                    last_payload = serialized
+                if payload is not None:
+                    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+                    if serialized != last_payload:
+                        await websocket.send_text(serialized)
+                        last_payload = serialized
                 try:
                     await asyncio.wait_for(websocket.receive_text(), timeout=poll_interval)
                 except TimeoutError:
