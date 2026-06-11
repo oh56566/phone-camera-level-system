@@ -188,6 +188,23 @@ class ViewerParserTests(unittest.TestCase):
             self.assertEqual(payload["events"][0]["stage"], "sfm")
             self.assertTrue(payload["events"][0]["payload"]["use_gpu"])
 
+    @unittest.skipIf(not (NUMPY_AVAILABLE and FASTAPI_AVAILABLE), "viewer dependencies are not installed")
+    def test_discover_projects_treats_parent_folder_children_as_projects(self) -> None:
+        from vidtolevel.viewer.server.api import discover_projects
+
+        with tempfile.TemporaryDirectory() as tmp:
+            parent = Path(tmp) / "runs"
+            run_root = parent / "run_a"
+            _write_sparse_model(run_root / "snapshots" / "sfm" / "0")
+            images_dir = run_root / "colmap" / "images"
+            images_dir.mkdir(parents=True)
+
+            projects = discover_projects([parent])
+
+            self.assertEqual(list(projects), ["run-a"])
+            self.assertEqual(projects["run-a"].root, run_root.resolve())
+            self.assertEqual(projects["run-a"].images_dir, images_dir.resolve())
+
     @unittest.skipIf(not NUMPY_AVAILABLE, "numpy is not installed")
     def test_sparse_snapshot_signature_tracks_model_file_changes(self) -> None:
         from vidtolevel.viewer.server.colmap_parser import read_sparse_model

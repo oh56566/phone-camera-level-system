@@ -17,6 +17,7 @@ from vidtolevel.viewer.server.converter import (
     POINT_BINARY_MIME,
     POINT_BINARY_STRIDE,
     POINT_COLOR_MODES,
+    find_direct_sparse_model,
     find_first_sparse_model,
     find_images_dir,
     pack_points_binary,
@@ -226,8 +227,8 @@ def discover_projects(paths: list[Path]) -> dict[str, ViewerProject]:
     for raw_path in paths:
         root = raw_path.resolve()
         candidates = [root]
-        if root.exists() and root.is_dir() and not find_first_sparse_model(root):
-            candidates.extend(sorted(path for path in root.iterdir() if path.is_dir()))
+        if root.exists() and root.is_dir() and _should_scan_children(root):
+            candidates = sorted(path for path in root.iterdir() if path.is_dir())
 
         for candidate in candidates:
             sparse_model = find_first_sparse_model(candidate)
@@ -242,6 +243,25 @@ def discover_projects(paths: list[Path]) -> dict[str, ViewerProject]:
                 images_dir=find_images_dir(candidate, sparse_model),
             )
     return projects
+
+
+def _should_scan_children(root: Path) -> bool:
+    if find_direct_sparse_model(root) is not None:
+        return False
+    if _looks_like_reconstruction_root(root):
+        return False
+    return True
+
+
+def _looks_like_reconstruction_root(root: Path) -> bool:
+    markers = [
+        root / "checkpoint.json",
+        root / "project.json",
+        root / "colmap",
+        root / "snapshots",
+        root / "sessions",
+    ]
+    return any(path.exists() for path in markers)
 
 
 def _project_or_404(projects: dict[str, ViewerProject], project_id: str) -> ViewerProject:

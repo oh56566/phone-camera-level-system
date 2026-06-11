@@ -93,17 +93,9 @@ def _session_color(session: str) -> tuple[int, int, int]:
 
 def find_first_sparse_model(root: Path) -> Path | None:
     root = root.resolve()
-    if _is_sparse_model(root):
-        return root
-
-    direct_candidates = [
-        root / "colmap" / "sparse" / "0",
-        root / "sparse" / "0",
-        root / "sparse",
-    ]
-    for candidate in direct_candidates:
-        if _is_sparse_model(candidate):
-            return candidate
+    direct = find_direct_sparse_model(root)
+    if direct is not None:
+        return direct
 
     sparse_root = root / "colmap" / "sparse"
     if sparse_root.exists():
@@ -116,6 +108,22 @@ def find_first_sparse_model(root: Path) -> Path | None:
             model_path = candidate.parent
             if _is_sparse_model(model_path):
                 return model_path
+    return None
+
+
+def find_direct_sparse_model(root: Path) -> Path | None:
+    root = root.resolve()
+    if _is_sparse_model(root):
+        return root
+
+    direct_candidates = [
+        root / "colmap" / "sparse" / "0",
+        root / "sparse" / "0",
+        root / "sparse",
+    ]
+    for candidate in direct_candidates:
+        if _is_sparse_model(candidate):
+            return candidate
     return None
 
 
