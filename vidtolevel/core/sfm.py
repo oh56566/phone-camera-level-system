@@ -20,9 +20,8 @@ class SfmStats:
         return asdict(self)
 
 
-def _first_sparse_model(sparse_root: Path) -> Path | None:
-    candidates = sorted(path for path in sparse_root.iterdir() if path.is_dir()) if sparse_root.exists() else []
-    return candidates[0] if candidates else None
+def _sparse_model_candidates(sparse_root: Path) -> list[Path]:
+    return sorted(path for path in sparse_root.iterdir() if path.is_dir()) if sparse_root.exists() else []
 
 
 def _parse_registered_images(text: str) -> int | None:
@@ -35,6 +34,31 @@ def _parse_registered_images(text: str) -> int | None:
         if match:
             return int(match.group(1))
     return None
+
+
+def _analyze_sparse_models(
+    *,
+    colmap: str,
+    sparse_root: Path,
+    log_dir: Path,
+) -> tuple[Path | None, int | None]:
+    best_model: Path | None = None
+    best_registered: int | None = None
+
+    for candidate in _sparse_model_candidates(sparse_root):
+        result = run_command(
+            [colmap, "model_analyzer", "--path", str(candidate)],
+            log_path=log_dir / f"colmap_model_analyzer_{candidate.name}.log",
+            check=False,
+        )
+        registered = _parse_registered_images(result.output)
+        best_score = best_registered if best_registered is not None else -1
+        candidate_score = registered if registered is not None else -1
+        if best_model is None or candidate_score > best_score:
+            best_model = candidate
+            best_registered = registered
+
+    return best_model, best_registered
 
 
 def _colmap_gpu_option(
@@ -134,15 +158,11 @@ def run_new_reconstruction(
         )
     run_command(mapper_command, log_path=log_dir / "colmap_mapper.log")
 
-    sparse_model = _first_sparse_model(sparse_dir)
-    registered_images: int | None = None
-    if sparse_model:
-        result = run_command(
-            [colmap, "model_analyzer", "--path", str(sparse_model)],
-            log_path=log_dir / "colmap_model_analyzer.log",
-            check=False,
-        )
-        registered_images = _parse_registered_images(result.output)
+    sparse_model, registered_images = _analyze_sparse_models(
+        colmap=colmap,
+        sparse_root=sparse_dir,
+        log_dir=log_dir,
+    )
 
     total_images = (
         len([line for line in image_list_path.read_text(encoding="utf-8").splitlines() if line.strip()])

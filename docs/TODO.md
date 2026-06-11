@@ -12,8 +12,8 @@ the project can resume without relying on conversation context.
    - Done on Windows RTX 4070 Super: COLMAP 4.1 dev CUDA build runs GPU feature extraction and matching.
    - Done on Windows RTX 4070 Super: synthetic video sparse smoke registers 24/24 frames and opens in `vidtolevel viewer`.
    - Done on Windows RTX 4070 Super: synthetic full MVS smoke runs COLMAP undistortion plus OpenMVS densify/reconstruct/refine/texture and exports a textured OBJ mesh.
-   - Run a short real phone-video pipeline with `--skip-optimize` first once a sample `.mp4` is available.
-   - Confirm the real phone-video camera path, sparse points, and mesh preview in `vidtolevel viewer` before marking Phase 0 complete.
+   - Done on Windows RTX 4070 Super: real phone video `IMG_0001.mov` runs with `--skip-optimize`, registers 91/91 accepted frames, completes OpenMVS, and exports textured OBJ/MTL/JPG output.
+   - Done: `vidtolevel viewer runs/phone_img_0001_smoke_v2 --host 127.0.0.1 --port 8766` serves 91 cameras, 19,080 sparse points, and the real textured OBJ mesh.
 
 2. Viewer V2 live monitoring
    - Done: add WebSocket endpoint for job state backed by SQLite polling.
@@ -56,11 +56,13 @@ the project can resume without relying on conversation context.
 
 ## Current Known Blockers
 
-- Full video-to-FBX validation now needs a short real sample phone video.
+- No current Phase 0 smoke blocker is known. The real phone-video smoke intentionally used `--skip-optimize`; a real FBX/Blender optimize pass remains optional validation for Phase 4.
 - No current Windows OpenMVS runtime blocker is known. If MVS fails, inspect OpenMVS per-tool logs under `openmvs/colmap_dense/*.log` in addition to VidToLevel logs.
 
 ## Completed Recently
 
+- Real phone-video smoke: `vidtolevel process IMG_0001.mov --job-id phone_img_0001_smoke_v2 --skip-optimize` extracted 107 frames, accepted 91, registered 91/91 in COLMAP, densified 2,452,062 points, reconstructed a 1,774,552-vertex raw mesh, refined to 309,546 vertices / 618,124 faces, textured OBJ output, and passed the quality report with no blocking issue.
+- COLMAP multi-model selection fix: when mapper emits multiple sparse reconstructions, SFM now analyzes each candidate and selects the model with the most registered images; MVS and Viewer use the selected/largest sparse model instead of assuming `sparse/0`.
 - Windows OpenMVS pipeline fix: `run_openmvs` now runs COLMAP `image_undistorter`, imports the undistorted dense workspace with `InterfaceCOLMAP`, and runs OpenMVS commands from that workspace so image and mesh companion paths resolve correctly.
 - Synthetic full MVS smoke: `vidtolevel process --skip-optimize` on `.vidtolevel_smoke/synthetic_phone_like.mp4` registered 24/24 frames, densified on RTX 4070 Super CUDA, generated PLY mesh stages, textured OBJ/MTL/JPG output, and rendered the OBJ mesh in Viewer.
 - OpenMVS v2.4 mesh flow: `ReconstructMesh` output is treated as a `.ply` mesh, and `RefineMesh` / `TextureMesh` consume it through `-m`.

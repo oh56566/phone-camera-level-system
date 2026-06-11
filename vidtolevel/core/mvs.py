@@ -31,6 +31,7 @@ def run_openmvs(
     colmap_workspace: Path,
     output_dir: Path,
     log_dir: Path,
+    sparse_model: Path | None = None,
     image_folder: Path | None = None,
     resolution_level: int = 1,
     fallback_resolution_level: int = 2,
@@ -39,9 +40,11 @@ def run_openmvs(
     log_dir.mkdir(parents=True, exist_ok=True)
 
     resolved_image_folder = image_folder or (colmap_workspace / "images")
-    sparse_model = _first_sparse_model(colmap_workspace)
-    if sparse_model is None:
+    selected_sparse_model = sparse_model or _first_sparse_model(colmap_workspace)
+    if selected_sparse_model is None:
         raise FileNotFoundError(f"No COLMAP sparse model found under: {colmap_workspace}")
+    if not _is_sparse_model(selected_sparse_model):
+        raise FileNotFoundError(f"Invalid COLMAP sparse model: {selected_sparse_model}")
 
     dense_workspace = output_dir / "colmap_dense"
     scene = dense_workspace / "scene.mvs"
@@ -57,7 +60,7 @@ def run_openmvs(
             "--image_path",
             str(resolved_image_folder),
             "--input_path",
-            str(sparse_model),
+            str(selected_sparse_model),
             "--output_path",
             str(dense_workspace),
             "--output_type",
@@ -165,16 +168,20 @@ def _first_sparse_model(colmap_workspace: Path) -> Path | None:
         colmap_workspace / "sparse",
         colmap_workspace / "colmap" / "sparse" / "0",
     ]
-    for candidate in candidates:
-        if _is_sparse_model(candidate):
-            return candidate
+    sparse_models = [candidate for candidate in candidates if _is_sparse_model(candidate)]
 
-    sparse_root = colmap_workspace / "sparse"
-    if sparse_root.exists():
-        for candidate in sorted(path for path in sparse_root.iterdir() if path.is_dir()):
-            if _is_sparse_model(candidate):
-                return candidate
-    return None
+    for sparse_root in (colmap_workspace / "sparse", colmap_workspace / "colmap" / "sparse"):
+        if sparse_root.exists():
+            sparse_models.extend(
+                candidate
+                for candidate in sorted(path for path in sparse_root.iterdir() if path.is_dir())
+                if _is_sparse_model(candidate)
+            )
+    return max(sparse_models, key=_sparse_model_score) if sparse_models else None
+
+
+def _sparse_model_score(path: Path) -> int:
+    return (path / "images.bin").stat().st_size if (path / "images.bin").exists() else 0
 
 
 def _is_sparse_model(path: Path) -> bool:

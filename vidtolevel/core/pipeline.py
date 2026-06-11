@@ -235,6 +235,7 @@ def process_video(options: ProcessOptions) -> dict[str, Any]:
             db.update_job(options.database_path, job_id=job_id, status="running", message="run openmvs")
             _emit_event(options.database_path, job_id, "mvs", "started", "run openmvs")
             checkpoint.start("mvs")
+            sparse_model_path = checkpoint.stages.get("sfm", {}).get("sparse_model")
             mvs_stats = run_openmvs(
                 colmap=require_tool("colmap"),
                 interface_colmap=require_tool("InterfaceCOLMAP"),
@@ -243,6 +244,7 @@ def process_video(options: ProcessOptions) -> dict[str, Any]:
                 refine_mesh=require_tool("RefineMesh"),
                 texture_mesh=require_tool("TextureMesh"),
                 colmap_workspace=layout.colmap_workspace,
+                sparse_model=Path(sparse_model_path) if sparse_model_path else None,
                 output_dir=layout.openmvs,
                 log_dir=layout.logs,
             )

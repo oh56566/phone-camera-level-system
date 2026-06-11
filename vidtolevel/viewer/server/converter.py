@@ -4,7 +4,7 @@ import struct
 from pathlib import Path
 from typing import Iterable
 
-from vidtolevel.viewer.server.colmap_parser import ColmapImage, ColmapPoint3D
+from vidtolevel.viewer.server.colmap_parser import ColmapImage, ColmapPoint3D, read_images_binary
 
 
 POINT_BINARY_MIME = "application/vnd.vidtolevel.points+binary"
@@ -104,15 +104,12 @@ def find_first_sparse_model(root: Path) -> Path | None:
 
     sparse_root = root / "colmap" / "sparse"
     if sparse_root.exists():
-        for candidate in sorted(path for path in sparse_root.iterdir() if path.is_dir()):
-            if _is_sparse_model(candidate):
-                return candidate
+        best = _best_sparse_model(path for path in sparse_root.iterdir() if path.is_dir())
+        if best is not None:
+            return best
 
     if root.exists():
-        for candidate in sorted(root.glob("**/cameras.bin")):
-            model_path = candidate.parent
-            if _is_sparse_model(model_path):
-                return model_path
+        return _best_sparse_model(candidate.parent for candidate in root.glob("**/cameras.bin"))
     return None
 
 
@@ -121,14 +118,17 @@ def find_direct_sparse_model(root: Path) -> Path | None:
     if _is_sparse_model(root):
         return root
 
-    direct_candidates = [
-        root / "colmap" / "sparse" / "0",
-        root / "sparse" / "0",
-        root / "sparse",
-    ]
-    for candidate in direct_candidates:
-        if _is_sparse_model(candidate):
-            return candidate
+    for sparse_root in (root / "colmap" / "sparse", root / "sparse"):
+        best = (
+            _best_sparse_model(path for path in sparse_root.iterdir() if path.is_dir())
+            if sparse_root.exists()
+            else None
+        )
+        if best is not None:
+            return best
+
+    if _is_sparse_model(root / "sparse"):
+        return (root / "sparse").resolve()
     return None
 
 
@@ -186,6 +186,18 @@ def mesh_format(path: Path) -> str:
 
 def _supported_mesh(path: Path) -> bool:
     return path.suffix.lower() in MESH_MEDIA_TYPES
+
+
+def _best_sparse_model(candidates: Iterable[Path]) -> Path | None:
+    models = [candidate for candidate in candidates if _is_sparse_model(candidate)]
+    return max(models, key=_sparse_model_score).resolve() if models else None
+
+
+def _sparse_model_score(path: Path) -> int:
+    try:
+        return len(read_images_binary(path / "images.bin"))
+    except Exception:
+        return (path / "images.bin").stat().st_size if (path / "images.bin").exists() else 0
 
 
 def _is_sparse_model(path: Path) -> bool:

@@ -254,6 +254,22 @@ class ViewerParserTests(unittest.TestCase):
             self.assertEqual(projects["run-a"].root, run_root.resolve())
             self.assertEqual(projects["run-a"].images_dir, images_dir.resolve())
 
+    @unittest.skipIf(not (NUMPY_AVAILABLE and FASTAPI_AVAILABLE), "viewer dependencies are not installed")
+    def test_discover_projects_uses_largest_sparse_model(self) -> None:
+        from vidtolevel.viewer.server.api import discover_projects
+
+        with tempfile.TemporaryDirectory() as tmp:
+            run_root = Path(tmp) / "run"
+            small = _write_sparse_model(run_root / "colmap" / "sparse" / "0", image_count=1)
+            large = _write_sparse_model(run_root / "colmap" / "sparse" / "1", image_count=3)
+            images_dir = run_root / "colmap" / "images"
+            images_dir.mkdir(parents=True)
+
+            projects = discover_projects([run_root])
+
+            self.assertNotEqual(projects["run"].sparse_model, small.resolve())
+            self.assertEqual(projects["run"].sparse_model, large.resolve())
+
     @unittest.skipIf(not NUMPY_AVAILABLE, "numpy is not installed")
     def test_sparse_snapshot_signature_tracks_model_file_changes(self) -> None:
         from vidtolevel.viewer.server.colmap_parser import read_sparse_model
@@ -297,22 +313,30 @@ class ViewerParserTests(unittest.TestCase):
             self.assertEqual(diff["removedPointCount"], 1)
 
 
-def _write_sparse_model(path: Path) -> Path:
+def _write_sparse_model(path: Path, image_count: int = 2) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     (path / "cameras.bin").write_bytes(
         struct.pack("<Q", 1)
         + struct.pack("<iiQQ", 1, 1, 640, 480)
         + struct.pack("<dddd", 500.0, 500.0, 320.0, 240.0)
     )
-    (path / "images.bin").write_bytes(
-        struct.pack("<Q", 2)
-        + _image_record(1, (1.0, 0.0, 0.0, 0.0), (0.0, 0.0, 0.0), "0001.jpg", [1, -1])
-        + _image_record(2, (1.0, 0.0, 0.0, 0.0), (-1.0, 0.0, 0.0), "0002.jpg", [1])
-    )
+    images = bytearray(struct.pack("<Q", image_count))
+    for image_id in range(1, image_count + 1):
+        images.extend(
+            _image_record(
+                image_id,
+                (1.0, 0.0, 0.0, 0.0),
+                (float(1 - image_id), 0.0, 0.0),
+                f"{image_id:04d}.jpg",
+                [1, -1] if image_id == 1 else [1],
+            )
+        )
+    (path / "images.bin").write_bytes(bytes(images))
+    second_track_image = min(2, image_count)
     (path / "points3D.bin").write_bytes(
         struct.pack("<Q", 2)
         + _point_record(1, (0.0, 0.0, 2.0), (255, 0, 0), 0.5, [(1, 0)])
-        + _point_record(2, (1.0, 0.0, 2.0), (0, 255, 0), 0.7, [(2, 0)])
+        + _point_record(2, (1.0, 0.0, 2.0), (0, 255, 0), 0.7, [(second_track_image, 0)])
     )
     return path
 

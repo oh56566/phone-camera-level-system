@@ -282,6 +282,7 @@ def add_project_session(options: SessionOptions) -> dict[str, Any]:
             db.update_job(jobs_db, job_id=session_id, status="running", message="run project openmvs")
             _emit_event(jobs_db, session_id, "mvs", "started", "run project openmvs")
             checkpoint.start("mvs")
+            sparse_model = active_sparse_model(paths.root)
             mvs_stats = run_openmvs(
                 colmap=require_tool("colmap"),
                 interface_colmap=require_tool("InterfaceCOLMAP"),
@@ -290,6 +291,7 @@ def add_project_session(options: SessionOptions) -> dict[str, Any]:
                 refine_mesh=require_tool("RefineMesh"),
                 texture_mesh=require_tool("TextureMesh"),
                 colmap_workspace=paths.root,
+                sparse_model=sparse_model,
                 image_folder=paths.images,
                 output_dir=layout.mvs_output,
                 log_dir=layout.logs,

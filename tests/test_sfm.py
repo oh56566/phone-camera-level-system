@@ -84,6 +84,42 @@ class SfmCommandTests(unittest.TestCase):
             self.assertIn("--FeatureExtraction.use_gpu", feature_command)
             self.assertIn("--FeatureMatching.use_gpu", matcher_command)
 
+    def test_largest_colmap_reconstruction_is_selected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            images = root / "images"
+            images.mkdir()
+            for index in range(4):
+                (images / f"{index:04d}.jpg").write_bytes(b"jpg")
+            sparse = root / "sparse"
+
+            def fake_run(command, **kwargs):
+                command_list = list(command)
+                if command_list[1] == "mapper":
+                    (sparse / "0").mkdir(parents=True)
+                    (sparse / "1").mkdir(parents=True)
+                output = ""
+                if command_list[1] == "model_analyzer":
+                    output = (
+                        "Registered images: 4"
+                        if Path(command_list[-1]).name == "1"
+                        else "Registered images: 2"
+                    )
+                return CommandResult(command=command_list, returncode=0, output=output)
+
+            with patch("vidtolevel.core.sfm.run_command", side_effect=fake_run):
+                stats = run_new_reconstruction(
+                    colmap="colmap",
+                    images_dir=images,
+                    database_path=root / "database.db",
+                    sparse_dir=sparse,
+                    log_dir=root / "logs",
+                )
+
+            self.assertEqual(stats.sparse_model, str(sparse / "1"))
+            self.assertEqual(stats.registered_images, 4)
+            self.assertEqual(stats.registered_ratio, 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()

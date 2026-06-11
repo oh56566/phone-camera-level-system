@@ -73,6 +73,55 @@ class MvsCommandTests(unittest.TestCase):
             self.assertTrue(all(cwd == dense_workspace for _, cwd in calls[1:]))
             self.assertEqual(stats.textured_mesh_path, str(dense_workspace / "scene_dense_mesh_refine_texture.obj"))
 
+    def test_openmvs_fallback_uses_largest_sparse_model(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            colmap_workspace = root / "colmap"
+            small_sparse = colmap_workspace / "sparse" / "0"
+            large_sparse = colmap_workspace / "sparse" / "1"
+            images = colmap_workspace / "images"
+            logs = root / "logs"
+            output = root / "openmvs"
+            images.mkdir(parents=True)
+            for sparse, size in ((small_sparse, 1), (large_sparse, 64)):
+                sparse.mkdir(parents=True)
+                (sparse / "cameras.bin").write_bytes(b"bin")
+                (sparse / "images.bin").write_bytes(b"x" * size)
+                (sparse / "points3D.bin").write_bytes(b"bin")
+
+            commands: list[list[str]] = []
+
+            def fake_run(command, **kwargs):
+                command_list = list(command)
+                commands.append(command_list)
+                cwd = kwargs.get("cwd")
+                if command_list[1] == "image_undistorter":
+                    dense = Path(command_list[command_list.index("--output_path") + 1])
+                    (dense / "images").mkdir(parents=True)
+                    (dense / "sparse").mkdir()
+                elif "-o" in command_list and cwd is not None:
+                    (cwd / command_list[command_list.index("-o") + 1]).write_bytes(b"out")
+                return CommandResult(command=command_list, returncode=0, output="")
+
+            with patch("vidtolevel.core.mvs.run_command", side_effect=fake_run):
+                run_openmvs(
+                    colmap="colmap",
+                    interface_colmap="InterfaceCOLMAP",
+                    densify_point_cloud="DensifyPointCloud",
+                    reconstruct_mesh="ReconstructMesh",
+                    refine_mesh="RefineMesh",
+                    texture_mesh="TextureMesh",
+                    colmap_workspace=colmap_workspace,
+                    output_dir=output,
+                    log_dir=logs,
+                )
+
+            undistort_command = commands[0]
+            self.assertEqual(
+                undistort_command[undistort_command.index("--input_path") + 1],
+                str(large_sparse),
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
