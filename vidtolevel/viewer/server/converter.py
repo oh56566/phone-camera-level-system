@@ -10,6 +10,11 @@ from vidtolevel.viewer.server.colmap_parser import ColmapImage, ColmapPoint3D
 POINT_BINARY_MIME = "application/vnd.vidtolevel.points+binary"
 POINT_BINARY_STRIDE = 15
 POINT_COLOR_MODES = {"rgb", "error", "track", "session"}
+MESH_MEDIA_TYPES = {
+    ".glb": "model/gltf-binary",
+    ".gltf": "model/gltf+json",
+    ".obj": "text/plain",
+}
 
 
 def pack_points_binary(
@@ -142,12 +147,18 @@ def find_images_dir(root: Path, sparse_model: Path) -> Path | None:
 
 def find_mesh_file(root: Path) -> Path | None:
     candidates = [
+        root / "openmvs" / "scene_dense_mesh_refine_texture.glb",
+        root / "openmvs" / "scene_dense_mesh_refine_texture.gltf",
         root / "openmvs" / "scene_dense_mesh_refine_texture.obj",
+        root / "openmvs" / "scene_dense_mesh_refine.glb",
+        root / "openmvs" / "scene_dense_mesh_refine.gltf",
         root / "openmvs" / "scene_dense_mesh_refine.obj",
+        root / "output" / f"{root.name}.glb",
+        root / "output" / f"{root.name}.gltf",
         root / "output" / f"{root.name}.obj",
     ]
     for candidate in candidates:
-        if candidate.exists() and candidate.is_file():
+        if candidate.exists() and candidate.is_file() and _supported_mesh(candidate):
             return candidate.resolve()
 
     search_roots = [
@@ -158,10 +169,23 @@ def find_mesh_file(root: Path) -> Path | None:
     for search_root in search_roots:
         if not search_root.exists():
             continue
-        for candidate in sorted(search_root.rglob("*.obj")):
-            if candidate.is_file():
-                return candidate.resolve()
+        for suffix in (".glb", ".gltf", ".obj"):
+            for candidate in sorted(search_root.rglob(f"*{suffix}")):
+                if candidate.is_file():
+                    return candidate.resolve()
     return None
+
+
+def mesh_media_type(path: Path) -> str:
+    return MESH_MEDIA_TYPES.get(path.suffix.lower(), "application/octet-stream")
+
+
+def mesh_format(path: Path) -> str:
+    return path.suffix.lower().lstrip(".")
+
+
+def _supported_mesh(path: Path) -> bool:
+    return path.suffix.lower() in MESH_MEDIA_TYPES
 
 
 def _is_sparse_model(path: Path) -> bool:

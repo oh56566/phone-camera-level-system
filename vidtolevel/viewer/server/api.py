@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import mimetypes
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -21,6 +22,8 @@ from vidtolevel.viewer.server.converter import (
     find_first_sparse_model,
     find_images_dir,
     find_mesh_file,
+    mesh_format,
+    mesh_media_type,
     pack_points_binary,
 )
 from vidtolevel.viewer.server.coverage import compute_topdown_coverage
@@ -85,7 +88,13 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
             "bounds": model_bounds(model.points3d, model.images),
             "diagnostics": summarize_camera_path(camera_payload),
             "meshAvailable": project.mesh_path is not None,
-            "meshUrl": f"/api/{project.id}/mesh.obj" if project.mesh_path else "",
+            "meshFormat": mesh_format(project.mesh_path) if project.mesh_path else "",
+            "meshUrl": (
+                f"/api/{project.id}/mesh.{mesh_format(project.mesh_path)}"
+                if project.mesh_path
+                else ""
+            ),
+            "meshResourceUrl": f"/api/{project.id}/mesh-assets/" if project.mesh_path else "",
             "checkpoint": str(checkpoint) if checkpoint.exists() else "",
             "summary": str(summary) if summary.exists() else "",
         }
@@ -151,12 +160,29 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return FileResponse(thumbnail_path, media_type="image/jpeg")
 
-    @app.get("/api/{project_id}/mesh.obj")
-    def mesh(project_id: str) -> FileResponse:
+    @app.get("/api/{project_id}/mesh.{extension}")
+    def mesh(project_id: str, extension: str) -> FileResponse:
         project = _project_or_404(projects, project_id)
         if project.mesh_path is None or not project.mesh_path.exists():
-            raise HTTPException(status_code=404, detail="Mesh OBJ not found.")
-        return FileResponse(project.mesh_path, media_type="text/plain")
+            raise HTTPException(status_code=404, detail="Mesh not found.")
+        expected = mesh_format(project.mesh_path)
+        if extension.lower() != expected:
+            raise HTTPException(status_code=404, detail=f"Mesh is available as .{expected}.")
+        return FileResponse(project.mesh_path, media_type=mesh_media_type(project.mesh_path))
+
+    @app.get("/api/{project_id}/mesh-assets/{asset_path:path}")
+    def mesh_asset(project_id: str, asset_path: str) -> FileResponse:
+        project = _project_or_404(projects, project_id)
+        if project.mesh_path is None:
+            raise HTTPException(status_code=404, detail="Mesh not found.")
+        asset_root = project.mesh_path.parent.resolve()
+        asset = (asset_root / asset_path).resolve()
+        if asset_root != asset and asset_root not in asset.parents:
+            raise HTTPException(status_code=400, detail="Invalid mesh asset path.")
+        if not asset.is_file():
+            raise HTTPException(status_code=404, detail="Mesh asset not found.")
+        media_type = mimetypes.guess_type(asset.name)[0] or "application/octet-stream"
+        return FileResponse(asset, media_type=media_type)
 
     @app.websocket("/ws/jobs")
     async def jobs_socket(

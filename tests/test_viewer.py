@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import math
 import struct
 import tempfile
@@ -64,6 +65,32 @@ class ViewerParserTests(unittest.TestCase):
                 / "OrbitControls.js"
             ).exists()
         )
+        self.assertTrue(
+            (
+                REPO_ROOT
+                / "vidtolevel"
+                / "viewer"
+                / "web"
+                / "vendor"
+                / "examples"
+                / "jsm"
+                / "loaders"
+                / "GLTFLoader.js"
+            ).exists()
+        )
+        self.assertTrue(
+            (
+                REPO_ROOT
+                / "vidtolevel"
+                / "viewer"
+                / "web"
+                / "vendor"
+                / "examples"
+                / "jsm"
+                / "utils"
+                / "BufferGeometryUtils.js"
+            ).exists()
+        )
 
     @unittest.skipIf(not NUMPY_AVAILABLE, "numpy is not installed")
     def test_colmap_parser_reads_binary_sparse_model(self) -> None:
@@ -94,17 +121,21 @@ class ViewerParserTests(unittest.TestCase):
             images_dir.mkdir(parents=True)
             (images_dir / "0001.jpg").write_bytes(b"fake-jpeg")
             _write_obj_mesh(run_root / "openmvs" / "scene_dense_mesh_refine_texture.obj")
+            _write_glb_mesh(run_root / "openmvs" / "scene_dense_mesh_refine_texture.glb")
+            (run_root / "openmvs" / "preview.bin").write_bytes(b"mesh-asset")
             projects = discover_projects([run_root])
 
             self.assertEqual(list(projects), ["run"])
             self.assertTrue(projects["run"].mesh_path)
+            self.assertEqual(projects["run"].mesh_path.suffix, ".glb")
 
             app = create_viewer_app([run_root])
             project_endpoint = _endpoint(app, "/api/projects")
             cameras_endpoint = _endpoint(app, "/api/{project_id}/cameras")
             points_endpoint = _endpoint(app, "/api/{project_id}/points")
             status_endpoint = _endpoint(app, "/api/{project_id}/status")
-            mesh_endpoint = _endpoint(app, "/api/{project_id}/mesh.obj")
+            mesh_endpoint = _endpoint(app, "/api/{project_id}/mesh.{extension}")
+            mesh_asset_endpoint = _endpoint(app, "/api/{project_id}/mesh-assets/{asset_path:path}")
 
             project_response = project_endpoint()
             self.assertEqual(project_response[0]["id"], "run")
@@ -115,7 +146,9 @@ class ViewerParserTests(unittest.TestCase):
             self.assertEqual(status_response["cameraCount"], 2)
             self.assertEqual(status_response["diagnostics"]["issueCount"], 0)
             self.assertTrue(status_response["meshAvailable"])
-            self.assertEqual(status_response["meshUrl"], "/api/run/mesh.obj")
+            self.assertEqual(status_response["meshFormat"], "glb")
+            self.assertEqual(status_response["meshUrl"], "/api/run/mesh.glb")
+            self.assertEqual(status_response["meshResourceUrl"], "/api/run/mesh-assets/")
 
             cameras_response = cameras_endpoint("run")
             self.assertEqual(len(cameras_response["cameras"]), 2)
@@ -130,9 +163,13 @@ class ViewerParserTests(unittest.TestCase):
             self.assertEqual(error_points_response.headers["x-vidtolevel-color-mode"], "error")
             self.assertEqual(len(error_points_response.body), 30)
 
-            mesh_response = mesh_endpoint("run")
-            self.assertEqual(mesh_response.media_type, "text/plain")
-            self.assertTrue(str(mesh_response.path).endswith("scene_dense_mesh_refine_texture.obj"))
+            mesh_response = mesh_endpoint("run", "glb")
+            self.assertEqual(mesh_response.media_type, "model/gltf-binary")
+            self.assertTrue(str(mesh_response.path).endswith("scene_dense_mesh_refine_texture.glb"))
+
+            asset_response = mesh_asset_endpoint("run", "preview.bin")
+            self.assertEqual(asset_response.media_type, "application/octet-stream")
+            self.assertTrue(str(asset_response.path).endswith("preview.bin"))
 
     @unittest.skipIf(
         not (NUMPY_AVAILABLE and FASTAPI_AVAILABLE and CV2_AVAILABLE),
@@ -293,6 +330,70 @@ def _write_obj_mesh(path: Path) -> Path:
         )
         + "\n",
         encoding="utf-8",
+    )
+    return path
+
+
+def _write_glb_mesh(path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    positions = struct.pack("<fffffffff", 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0)
+    indices = struct.pack("<HHH", 0, 1, 2)
+    binary = positions + indices
+    binary += b"\x00" * ((4 - len(binary) % 4) % 4)
+    payload = {
+        "asset": {"version": "2.0"},
+        "scene": 0,
+        "scenes": [{"nodes": [0]}],
+        "nodes": [{"mesh": 0}],
+        "meshes": [
+            {
+                "primitives": [
+                    {"attributes": {"POSITION": 0}, "indices": 1, "material": 0, "mode": 4}
+                ]
+            }
+        ],
+        "materials": [
+            {
+                "doubleSided": True,
+                "pbrMetallicRoughness": {
+                    "baseColorFactor": [0.25, 0.85, 0.9, 1.0],
+                    "metallicFactor": 0.0,
+                    "roughnessFactor": 0.8,
+                },
+            }
+        ],
+        "buffers": [{"byteLength": len(binary)}],
+        "bufferViews": [
+            {"buffer": 0, "byteOffset": 0, "byteLength": len(positions), "target": 34962},
+            {
+                "buffer": 0,
+                "byteOffset": len(positions),
+                "byteLength": len(indices),
+                "target": 34963,
+            },
+        ],
+        "accessors": [
+            {
+                "bufferView": 0,
+                "componentType": 5126,
+                "count": 3,
+                "type": "VEC3",
+                "min": [0.0, 0.0, 0.0],
+                "max": [1.0, 1.0, 0.0],
+            },
+            {"bufferView": 1, "componentType": 5123, "count": 3, "type": "SCALAR"},
+        ],
+    }
+    json_chunk = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    json_chunk += b" " * ((4 - len(json_chunk) % 4) % 4)
+    total_length = 12 + 8 + len(json_chunk) + 8 + len(binary)
+    path.write_bytes(
+        b"glTF"
+        + struct.pack("<II", 2, total_length)
+        + struct.pack("<I4s", len(json_chunk), b"JSON")
+        + json_chunk
+        + struct.pack("<I4s", len(binary), b"BIN\x00")
+        + binary
     )
     return path
 

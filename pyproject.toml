@@ -31,4 +31,10 @@ vidtolevel = "vidtolevel.cli.main:main"
 include = ["vidtolevel*"]
 
 [tool.setuptools.package-data]
-"vidtolevel.viewer" = ["web/*", "web/vendor/*", "web/vendor/examples/jsm/controls/*"]
+"vidtolevel.viewer" = [
+  "web/*",
+  "web/vendor/*",
+  "web/vendor/examples/jsm/controls/*",
+  "web/vendor/examples/jsm/loaders/*",
+  "web/vendor/examples/jsm/utils/*",
+]

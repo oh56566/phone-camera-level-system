@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 const dom = {
   viewport: document.querySelector("#viewport"),
@@ -75,7 +76,6 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.screenSpacePanning = true;
-
 const grid = new THREE.GridHelper(20, 20, 0x4a5259, 0x2a3035);
 grid.material.transparent = true;
 grid.material.opacity = 0.55;
@@ -198,7 +198,7 @@ async function loadProject(project, options = {}) {
   dom.timelineRange.value = Math.max(state.cameras.length - 1, 0);
 
   await buildPointCloud(pointsResponse);
-  await loadMeshPreview(status.meshUrl || "");
+  await loadMeshPreview(status.meshUrl || "", status.meshFormat || "", status.meshResourceUrl || "");
   rebuildCameraGraphics();
   drawCoverage(coverage);
   updateMetrics(status, coverage);
@@ -293,11 +293,20 @@ async function buildPointCloud(response) {
   scene.add(state.pointObject);
 }
 
-async function loadMeshPreview(meshUrl) {
+async function loadMeshPreview(meshUrl, meshFormat = "", meshResourceUrl = "") {
   if (!meshUrl) {
     return;
   }
   setStatus(state.activeProject?.name || "Project", "Loading mesh");
+  const format = meshFormat || meshUrl.split("?")[0].split(".").pop().toLowerCase();
+  if (format === "glb" || format === "gltf") {
+    await loadGltfMeshPreview(meshUrl, meshResourceUrl);
+    return;
+  }
+  await loadObjMeshPreview(meshUrl);
+}
+
+async function loadObjMeshPreview(meshUrl) {
   const response = await fetch(meshUrl);
   if (!response.ok) {
     return;
@@ -318,12 +327,33 @@ async function loadMeshPreview(meshUrl) {
   );
   wire.name = "preview-mesh-wire";
 
+  registerMeshPreview(group, fill, wire);
+}
+
+async function loadGltfMeshPreview(meshUrl, meshResourceUrl) {
+  const loader = new GLTFLoader();
+  if (meshResourceUrl) {
+    loader.setResourcePath(meshResourceUrl);
+  }
+  const gltf = await new Promise((resolve, reject) => {
+    loader.load(meshUrl, resolve, undefined, reject);
+  });
+  const group = new THREE.Group();
+  group.name = "preview-mesh";
+  const fill = gltf.scene;
+  fill.name = "preview-mesh-fill";
+  prepareMeshMaterials(fill);
+  const wire = buildWireframeObject(fill);
+  wire.name = "preview-mesh-wire";
+  registerMeshPreview(group, fill, wire);
+}
+
+function registerMeshPreview(group, fill, wire) {
   group.add(fill);
   group.add(wire);
   state.meshObject = group;
   state.meshFillObject = fill;
   state.meshWireObject = wire;
-  state.meshObject.name = "preview-mesh";
   state.meshObject.renderOrder = -1;
   scene.add(state.meshObject);
   updateLayerVisibility();
@@ -344,6 +374,44 @@ function disposeObjectTree(object) {
       }
     }
   });
+}
+
+function prepareMeshMaterials(object) {
+  object.traverse((child) => {
+    if (!child.isMesh) {
+      return;
+    }
+    if (child.geometry && !child.geometry.getAttribute("normal")) {
+      child.geometry.computeVertexNormals();
+    }
+    if (!child.material) {
+      return;
+    }
+    if (Array.isArray(child.material)) {
+      child.material = child.material.map((material) => material.clone());
+    } else {
+      child.material = child.material.clone();
+    }
+    setMaterialSide(child.material, THREE.DoubleSide);
+  });
+}
+
+function buildWireframeObject(object) {
+  const group = new THREE.Group();
+  object.updateWorldMatrix(true, true);
+  object.traverse((child) => {
+    if (!child.isMesh || !child.geometry) {
+      return;
+    }
+    const line = new THREE.LineSegments(
+      new THREE.WireframeGeometry(child.geometry),
+      previewMeshWireMaterial.clone(),
+    );
+    line.matrix.copy(child.matrixWorld);
+    line.matrixAutoUpdate = false;
+    group.add(line);
+  });
+  return group;
 }
 
 function parseObjGeometry(text) {
@@ -580,11 +648,37 @@ function updateMeshDisplay() {
   state.meshObject.visible = enabled;
   if (state.meshFillObject) {
     state.meshFillObject.visible = enabled && (mode === "shaded" || mode === "both");
-    state.meshFillObject.material.opacity = opacity;
+    setObjectOpacity(state.meshFillObject, opacity);
   }
   if (state.meshWireObject) {
     state.meshWireObject.visible = enabled && (mode === "wire" || mode === "both");
-    state.meshWireObject.material.opacity = Math.min(1.0, opacity + 0.25);
+    setObjectOpacity(state.meshWireObject, Math.min(1.0, opacity + 0.25));
+  }
+}
+
+function setObjectOpacity(object, opacity) {
+  object.traverse((child) => {
+    if (child.material) {
+      setMaterialOpacity(child.material, opacity);
+    }
+  });
+}
+
+function setMaterialOpacity(materialOrList, opacity) {
+  const materials = Array.isArray(materialOrList) ? materialOrList : [materialOrList];
+  for (const material of materials) {
+    material.transparent = opacity < 1 || material.transparent;
+    material.opacity = opacity;
+    material.depthWrite = opacity >= 1;
+    material.needsUpdate = true;
+  }
+}
+
+function setMaterialSide(materialOrList, side) {
+  const materials = Array.isArray(materialOrList) ? materialOrList : [materialOrList];
+  for (const material of materials) {
+    material.side = side;
+    material.needsUpdate = true;
   }
 }
 
