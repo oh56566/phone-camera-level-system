@@ -56,6 +56,8 @@ class ViewerParserTests(unittest.TestCase):
         self.assertIn('id="mesh-opacity" type="range" min="10" max="100" value="100"', index)
         self.assertIn("map_Kd", app)
         self.assertIn("TextureLoader", app)
+        self.assertIn("texture.generateMipmaps = false", app)
+        self.assertIn("material.transparent = opacity < 1", app)
         self.assertNotIn("unpkg.com", index)
         self.assertTrue(
             (REPO_ROOT / "vidtolevel" / "viewer" / "web" / "vendor" / "three.module.js").exists()

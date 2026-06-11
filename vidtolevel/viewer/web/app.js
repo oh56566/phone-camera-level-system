@@ -570,13 +570,27 @@ function makeObjPreviewMaterial(materialName, materials, meshResourceUrl) {
   }
   if (info?.mapKd && meshResourceUrl) {
     const texture = new THREE.TextureLoader().load(meshAssetUrl(meshResourceUrl, info.mapKd));
-    texture.colorSpace = THREE.SRGBColorSpace;
-    texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
+    configureObjPreviewTexture(texture);
     material.map = texture;
     material.color.set(0xffffff);
+    material.transparent = false;
+    material.opacity = 1;
+    material.depthWrite = true;
     material.needsUpdate = true;
   }
   return material;
+}
+
+function configureObjPreviewTexture(texture) {
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.flipY = true;
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.anisotropy = 1;
+  texture.needsUpdate = true;
 }
 
 function meshAssetUrl(meshResourceUrl, assetPath) {
@@ -794,7 +808,7 @@ function setObjectOpacity(object, opacity) {
 function setMaterialOpacity(materialOrList, opacity) {
   const materials = Array.isArray(materialOrList) ? materialOrList : [materialOrList];
   for (const material of materials) {
-    material.transparent = opacity < 1 || material.transparent;
+    material.transparent = opacity < 1;
     material.opacity = opacity;
     material.depthWrite = opacity >= 1;
     material.needsUpdate = true;

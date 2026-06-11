@@ -1,6 +1,6 @@
 # VidToLevel Progress
 
-Updated: 2026-06-11
+Updated: 2026-06-12
 
 ## Main Pipeline Status
 
@@ -40,6 +40,8 @@ Updated: 2026-06-11
 - Real phone-video OpenMVS output: Densify produced 2,452,062 dense points, ReconstructMesh saved a 1,774,552-vertex / 3,549,094-face raw mesh, RefineMesh saved 309,546 vertices / 618,124 faces, and TextureMesh wrote `scene_dense_mesh_refine_texture.obj` with two JPG texture maps.
 - Viewer real-video smoke on Windows: `vidtolevel viewer runs/phone_img_0001_smoke_v2 --host 127.0.0.1 --port 8766` serves `sparse/1`, reports 91 cameras and 19,080 sparse points, and exposes the real textured OBJ mesh.
 - Viewer OBJ texture preview parses OBJ `mtllib` / `usemtl` / `vt` and MTL `map_Kd`, then loads texture companion images through `/mesh-assets/`.
+- Viewer textured OBJ rendering disables mipmap sampling and keeps 100% opacity materials opaque to reduce atlas seam/wire-like artifacts in dense OpenMVS texture previews.
+- Real phone-video texture inspection: `IMG_0001.mov` textured OBJ loads in Viewer, but the OpenMVS atlas is dominated by dark/black patches from the captured cluttered scene; texture quality improvement remains separate from viewer rendering correctness.
 - COLMAP multi-model selection is fixed: SFM analyzes all mapper output folders and selects the reconstruction with the most registered images; MVS and Viewer follow the selected/largest sparse model instead of assuming `sparse/0`.
 - Windows local tool discovery handles `.exe`, versioned `.tools/<tool>/<version>/bin`, and Program Files Blender discovery.
 - SQLite job DB helpers close connections explicitly so temp database tests pass on Windows.
@@ -67,8 +69,8 @@ Updated: 2026-06-11
 
 ## Next Work Queue
 
-1. Viewer V3 mesh preview: automated OBJ-to-GLB conversion.
-2. Viewer V3 texture/mesh inspection tools.
+1. Viewer V3 texture/mesh inspection tools for dark atlas coverage, missing texel ratio, and recapture guidance.
+2. Viewer V3 mesh preview: automated OBJ-to-GLB conversion.
 3. Optional real-mesh Blender optimize/FBX smoke.
 4. Phase 4 collision upgrade: separate ground proxy from building proxies.
 5. Phase 2 failure reports: parse COLMAP/OpenMVS logs into clearer recapture guidance.
