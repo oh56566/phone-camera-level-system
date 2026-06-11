@@ -137,6 +137,9 @@ async function loadProjects() {
   }
 
   if (state.projects.length === 0) {
+    state.activeProject = null;
+    closeProjectSocket();
+    clearSceneData();
     dom.emptyState.classList.remove("hidden");
     setStatus("No project", "Waiting for sparse model");
     return;
@@ -547,10 +550,7 @@ function connectJobSocket() {
 }
 
 function connectProjectSocket(projectId) {
-  if (state.projectSocket) {
-    state.projectSocket.close();
-  }
-  window.clearTimeout(state.projectReconnectTimer);
+  closeProjectSocket();
 
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
   const url = `${protocol}//${window.location.host}/ws/${encodeURIComponent(projectId)}`;
@@ -569,6 +569,15 @@ function connectProjectSocket(projectId) {
       state.projectReconnectTimer = window.setTimeout(() => connectProjectSocket(projectId), 2000);
     }
   });
+}
+
+function closeProjectSocket() {
+  if (state.projectSocket) {
+    state.projectSocket.close();
+    state.projectSocket = null;
+  }
+  window.clearTimeout(state.projectReconnectTimer);
+  state.projectReconnectTimer = null;
 }
 
 async function updateSparseSnapshot(payload) {
@@ -598,6 +607,14 @@ async function updateSparseSnapshot(payload) {
 
 function updateLiveJobs(payload) {
   const jobs = payload.jobs || [];
+  const events = payload.events || [];
+  if (events.length > 0) {
+    const event = events[0];
+    const stage = [event.stage, event.event].filter(Boolean).join("/");
+    const label = [event.job_id, stage, event.message].filter(Boolean).join(" · ");
+    dom.statusLive.textContent = `Live: ${label}`;
+    return;
+  }
   if (jobs.length === 0) {
     dom.statusLive.textContent = "Live: no jobs";
     return;

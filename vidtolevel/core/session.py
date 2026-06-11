@@ -104,6 +104,24 @@ def _stage_stats(checkpoint: Checkpoint) -> dict[str, Any]:
     }
 
 
+def _emit_event(
+    database_path: Path,
+    job_id: str,
+    stage: str,
+    event: str,
+    message: str | None = None,
+    **payload: Any,
+) -> None:
+    db.add_job_event(
+        database_path,
+        job_id=job_id,
+        stage=stage,
+        event=event,
+        message=message,
+        payload=payload,
+    )
+
+
 def add_project_session(options: SessionOptions) -> dict[str, Any]:
     video_path = options.video_path.resolve()
     if not video_path.exists():
@@ -123,18 +141,44 @@ def add_project_session(options: SessionOptions) -> dict[str, Any]:
         video_path=video_path,
         work_dir=layout.root,
     )
+    _emit_event(
+        jobs_db,
+        session_id,
+        "job",
+        "queued",
+        "session queued",
+        video_path=str(video_path),
+        work_dir=str(layout.root),
+    )
     checkpoint = Checkpoint.load(layout.checkpoint)
 
     try:
         db.update_job(jobs_db, job_id=session_id, status="running", message="copy input")
         if not checkpoint.done("input"):
+            _emit_event(jobs_db, session_id, "input", "started", "copy input")
             checkpoint.start("input", source=str(video_path))
             layout.input_video.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(video_path, layout.input_video)
             checkpoint.finish("input", copied_to=str(layout.input_video))
+            _emit_event(
+                jobs_db,
+                session_id,
+                "input",
+                "done",
+                "input copied",
+                copied_to=str(layout.input_video),
+            )
 
         if not checkpoint.done("frames"):
             db.update_job(jobs_db, job_id=session_id, status="running", message="extract frames")
+            _emit_event(
+                jobs_db,
+                session_id,
+                "frames",
+                "started",
+                "extract frames",
+                fps=options.fps,
+            )
             checkpoint.start("frames", fps=options.fps)
             extracted_count = extract_frames(
                 layout.input_video,
@@ -162,11 +206,31 @@ def add_project_session(options: SessionOptions) -> dict[str, Any]:
                 image_list=str(layout.image_list),
                 **frame_stats.to_dict(),
             )
+            _emit_event(
+                jobs_db,
+                session_id,
+                "frames",
+                "done",
+                "frames staged",
+                extracted_count=extracted_count,
+                staged_project_images=len(relative_images),
+                image_list=str(layout.image_list),
+                **frame_stats.to_dict(),
+            )
 
         if not checkpoint.done("sfm"):
             db.update_job(jobs_db, job_id=session_id, status="running", message="run project colmap")
-            checkpoint.start("sfm")
             existing_model = active_sparse_model(paths.root)
+            _emit_event(
+                jobs_db,
+                session_id,
+                "sfm",
+                "started",
+                "run project colmap",
+                mode="incremental" if existing_model else "new",
+                use_gpu=options.use_gpu,
+            )
+            checkpoint.start("sfm")
             if existing_model is None:
                 sfm_stats = run_new_reconstruction(
                     colmap=require_tool("colmap"),
@@ -199,10 +263,19 @@ def add_project_session(options: SessionOptions) -> dict[str, Any]:
                 )
                 _replace_active_sparse(paths.root, session_model, paths.sparse_versions / session_id)
             checkpoint.finish("sfm", **sfm_stats.to_dict())
+            _emit_event(
+                jobs_db,
+                session_id,
+                "sfm",
+                "done",
+                "project colmap completed",
+                **sfm_stats.to_dict(),
+            )
 
         textured_mesh: Path | None = None
         if not options.skip_mvs and not checkpoint.done("mvs"):
             db.update_job(jobs_db, job_id=session_id, status="running", message="run project openmvs")
+            _emit_event(jobs_db, session_id, "mvs", "started", "run project openmvs")
             checkpoint.start("mvs")
             mvs_stats = run_openmvs(
                 interface_colmap=require_tool("InterfaceCOLMAP"),
@@ -217,9 +290,19 @@ def add_project_session(options: SessionOptions) -> dict[str, Any]:
             )
             textured_mesh = Path(mvs_stats.textured_mesh_path)
             checkpoint.finish("mvs", **mvs_stats.to_dict())
+            _emit_event(
+                jobs_db,
+                session_id,
+                "mvs",
+                "done",
+                "project openmvs completed",
+                **mvs_stats.to_dict(),
+            )
         elif checkpoint.done("mvs"):
             textured = checkpoint.stages["mvs"].get("textured_mesh_path")
             textured_mesh = Path(textured) if textured else None
+        elif options.skip_mvs:
+            _emit_event(jobs_db, session_id, "mvs", "skipped", "openmvs skipped")
 
         if (
             not options.skip_optimize
@@ -227,6 +310,15 @@ def add_project_session(options: SessionOptions) -> dict[str, Any]:
             and not checkpoint.done("optimize")
         ):
             db.update_job(jobs_db, job_id=session_id, status="running", message="run blender")
+            _emit_event(
+                jobs_db,
+                session_id,
+                "optimize",
+                "started",
+                "run blender",
+                collision_mode=options.collision_mode,
+                target_faces=options.target_faces,
+            )
             checkpoint.start("optimize")
             output_fbx = layout.output / f"{session_id}.fbx"
             optimize_stats = run_blender_optimize(
@@ -238,6 +330,16 @@ def add_project_session(options: SessionOptions) -> dict[str, Any]:
                 collision_mode=options.collision_mode,
             )
             checkpoint.finish("optimize", **optimize_stats.to_dict())
+            _emit_event(
+                jobs_db,
+                session_id,
+                "optimize",
+                "done",
+                "blender optimization completed",
+                **optimize_stats.to_dict(),
+            )
+        elif options.skip_optimize:
+            _emit_event(jobs_db, session_id, "optimize", "skipped", "optimization skipped")
 
         stats = _stage_stats(checkpoint)
         summary_path = layout.output / "summary.json"
@@ -250,6 +352,7 @@ def add_project_session(options: SessionOptions) -> dict[str, Any]:
         )
         append_session(paths.root, session_id, video_path, stats, status="done")
         db.update_job(jobs_db, job_id=session_id, status="done", message="completed", stats=stats)
+        _emit_event(jobs_db, session_id, "job", "done", "completed")
         return {
             "session_id": session_id,
             "project": str(paths.root),
@@ -261,4 +364,5 @@ def add_project_session(options: SessionOptions) -> dict[str, Any]:
         stats = _stage_stats(checkpoint)
         append_session(paths.root, session_id, video_path, stats, status="failed")
         db.update_job(jobs_db, job_id=session_id, status="failed", message=str(exc), stats=stats)
+        _emit_event(jobs_db, session_id, "job", "failed", str(exc))
         raise

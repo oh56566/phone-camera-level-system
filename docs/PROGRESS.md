@@ -12,7 +12,7 @@ Updated: 2026-06-11
 | Phase 3: Incremental Sessions | Implemented scaffold | `vidtolevel add-session`, persistent project images/database, active sparse model replacement, bundle adjustment wrapper, and coverage command are present. Changed-area-only redensification is not implemented yet. |
 | Phase 4: Game Optimization | Partial | Blender headless FBX export, decimation, and `UCX_` ground-slab/bounds collision modes exist. Building/ground semantic separation, normal baking, V-HACD, and texture tiling remain. |
 | Phase 5: UE5 Integration | Partial | UE import script exists for FBX import and Nanite enable. Level template, material preset, and World Partition workflow remain. |
-| Phase 6: Operations | Partial | FastAPI job API, watch folder, SQLite status, and Discord notifier are present. Robust queue locking, live progress events, and long-running job recovery remain. |
+| Phase 6: Operations | Partial | FastAPI job API, watch folder, SQLite status/events, and Discord notifier are present. Robust queue locking and long-running job recovery remain. |
 
 ## Viewer Status
 
@@ -20,17 +20,18 @@ Updated: 2026-06-11
 |---|---:|---|
 | V0: Static Viewer | Complete | COLMAP binary parser, FastAPI static/API serving, binary point stream, Three.js sparse point view, camera frustums, path, timeline, and local vendor assets are working. |
 | V1: Diagnostics | In progress | Frustum click selection, cached frame thumbnails, camera path, timeline, metrics, coverage panel, point render modes, and path issue highlighting are present. Failure explanation summaries are the remaining V1 polish. |
-| V2: Real-time Monitoring | In progress | `/ws/jobs` streams SQLite job status. `/ws/{project_id}` watches sparse model signatures and refreshes viewer data when snapshots change. Compact camera/point diffs remain. |
+| V2: Real-time Monitoring | In progress | `/ws/jobs` streams SQLite job status and stage events. `/ws/{project_id}` watches sparse model signatures and refreshes viewer data when snapshots change. Compact camera/point diffs remain. |
 | V3: Dense Data + Mesh Preview | Not started | Dense point downsampling, GLB conversion, mesh preview, wireframe/texture toggles remain. |
 | V4: Coverage + Session Compare | Partial | Coverage grid API exists. Session coloring/diff reports and mobile capture-mode UI remain. |
 | V5: Finish | Partial | `vidtolevel viewer` command launches server and browser. Measurement tools, screenshots, view presets, and settings persistence remain. |
 
 ## Verified
 
-- `pytest`: 15 tests passing.
+- `pytest`: 16 tests passing.
 - `vidtolevel doctor`: FFmpeg, COLMAP, Blender, and required OpenMVS binaries resolve successfully.
 - OpenMVS v2.4.0 macOS arm64 prebuilt launches `InterfaceCOLMAP --help`.
 - Viewer WebSocket job state connects in browser and reports `Live: no jobs` when no job database exists.
+- Viewer WebSocket live status displays the latest pipeline stage event from SQLite.
 - Viewer project WebSocket connects against a fixture sparse model and keeps shutdown clean.
 - `vidtolevel viewer` renders a fixture sparse model in browser.
 - Viewer API returns projects, status, cameras, points, and coverage.

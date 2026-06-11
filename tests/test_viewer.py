@@ -165,11 +165,21 @@ class ViewerParserTests(unittest.TestCase):
                 work_dir=Path("runs/job-1"),
             )
             db.update_job(database, job_id="job-1", status="running", message="run colmap")
+            db.add_job_event(
+                database,
+                job_id="job-1",
+                stage="sfm",
+                event="started",
+                message="run colmap",
+                payload={"use_gpu": True},
+            )
 
             payload = build_jobs_payload(database)
             self.assertEqual(payload["type"], "jobs")
             self.assertEqual(payload["jobs"][0]["id"], "job-1")
             self.assertEqual(payload["jobs"][0]["message"], "run colmap")
+            self.assertEqual(payload["events"][0]["stage"], "sfm")
+            self.assertTrue(payload["events"][0]["payload"]["use_gpu"])
 
     @unittest.skipIf(not NUMPY_AVAILABLE, "numpy is not installed")
     def test_sparse_snapshot_signature_tracks_model_file_changes(self) -> None:

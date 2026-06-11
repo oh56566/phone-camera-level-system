@@ -7,13 +7,20 @@ from vidtolevel.core import db
 from vidtolevel.viewer.server.colmap_parser import SparseModel
 
 
-def build_jobs_payload(database_path: Path, *, limit: int = 20) -> dict[str, Any]:
+def build_jobs_payload(
+    database_path: Path,
+    *,
+    limit: int = 20,
+    event_limit: int = 50,
+) -> dict[str, Any]:
     resolved = database_path.resolve()
     jobs = db.list_jobs(resolved, limit=limit) if resolved.exists() else []
+    events = db.list_job_events(resolved, limit=event_limit) if resolved.exists() else []
     return {
         "type": "jobs",
         "database": str(resolved),
         "jobs": jobs,
+        "events": events,
     }
 
 

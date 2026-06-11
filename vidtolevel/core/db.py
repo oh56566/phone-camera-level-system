@@ -20,6 +20,19 @@ CREATE TABLE IF NOT EXISTS jobs (
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS job_events (
+  event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  job_id TEXT NOT NULL,
+  stage TEXT NOT NULL,
+  event TEXT NOT NULL,
+  message TEXT,
+  payload_json TEXT NOT NULL DEFAULT '{}',
+  created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_job_events_job_id_event_id
+ON job_events (job_id, event_id DESC);
 """
 
 
@@ -91,6 +104,33 @@ def update_job(
             )
 
 
+def add_job_event(
+    db_path: Path,
+    *,
+    job_id: str,
+    stage: str,
+    event: str,
+    message: str | None = None,
+    payload: dict[str, Any] | None = None,
+) -> None:
+    with connect(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO job_events
+              (job_id, stage, event, message, payload_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                job_id,
+                stage,
+                event,
+                message,
+                json.dumps(payload or {}, sort_keys=True, ensure_ascii=False),
+                utc_now(),
+            ),
+        )
+
+
 def list_jobs(db_path: Path, limit: int = 20) -> list[dict[str, Any]]:
     with connect(db_path) as conn:
         rows = conn.execute(
@@ -108,6 +148,41 @@ def list_jobs(db_path: Path, limit: int = 20) -> list[dict[str, Any]]:
         item["stats"] = json.loads(item.pop("stats_json") or "{}")
         jobs.append(item)
     return jobs
+
+
+def list_job_events(
+    db_path: Path,
+    *,
+    job_id: str | None = None,
+    limit: int = 100,
+) -> list[dict[str, Any]]:
+    if job_id is None:
+        query = """
+            SELECT event_id, job_id, stage, event, message, payload_json, created_at
+            FROM job_events
+            ORDER BY event_id DESC
+            LIMIT ?
+            """
+        params: tuple[Any, ...] = (limit,)
+    else:
+        query = """
+            SELECT event_id, job_id, stage, event, message, payload_json, created_at
+            FROM job_events
+            WHERE job_id = ?
+            ORDER BY event_id DESC
+            LIMIT ?
+            """
+        params = (job_id, limit)
+
+    with connect(db_path) as conn:
+        rows = conn.execute(query, params).fetchall()
+
+    events: list[dict[str, Any]] = []
+    for row in rows:
+        item = dict(row)
+        item["payload"] = json.loads(item.pop("payload_json") or "{}")
+        events.append(item)
+    return events
 
 
 def get_job(db_path: Path, job_id: str) -> dict[str, Any] | None:

@@ -17,7 +17,7 @@ the project can resume without relying on conversation context.
    - Done: add WebSocket endpoint for job state backed by SQLite polling.
    - Done: viewer status bar shows live job state and reconnects automatically.
    - Done: watch sparse model signatures via project WebSocket and refresh viewer data when snapshots change.
-   - Emit richer pipeline stage events from `process_video` and `add_project_session`.
+   - Done: emit pipeline stage events from `process_video` and `add_project_session`.
    - Later, stream compact camera/point diffs instead of full viewer refresh.
 
 3. Phase 4 collision upgrade
@@ -40,6 +40,7 @@ the project can resume without relying on conversation context.
 - V1: cached thumbnail generation. Done.
 - V1: failure segment explanation panel with counts per reason.
 - V2: WebSocket job state. Done.
+- V2: Pipeline stage event stream. Done.
 - V2: Sparse snapshot watching. Done.
 - V2: Compact live camera/point diff messages.
 - V3: dense point downsampling and mesh-to-GLB preview.
@@ -53,6 +54,7 @@ the project can resume without relying on conversation context.
 
 ## Completed Recently
 
+- Pipeline stage events: job/input/frames/sfm/mvs/optimize events are stored in SQLite and surfaced in Viewer live status.
 - Viewer V2 live job status: `/ws/jobs` streams SQLite job state to the status bar.
 - Viewer V2 sparse snapshot status: `/ws/{project_id}` detects COLMAP sparse model changes and triggers viewer refresh.
 - Phase 0 tool discovery: FFmpeg, COLMAP, Blender, and OpenMVS v2.4.0 are available locally.

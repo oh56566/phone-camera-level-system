@@ -82,6 +82,24 @@ def _stage_stats(checkpoint: Checkpoint) -> dict[str, Any]:
     }
 
 
+def _emit_event(
+    database_path: Path,
+    job_id: str,
+    stage: str,
+    event: str,
+    message: str | None = None,
+    **payload: Any,
+) -> None:
+    db.add_job_event(
+        database_path,
+        job_id=job_id,
+        stage=stage,
+        event=event,
+        message=message,
+        payload=payload,
+    )
+
+
 def process_video(options: ProcessOptions) -> dict[str, Any]:
     video_path = options.video_path.resolve()
     if not video_path.exists():
@@ -100,18 +118,44 @@ def process_video(options: ProcessOptions) -> dict[str, Any]:
         video_path=video_path,
         work_dir=layout.root,
     )
+    _emit_event(
+        options.database_path,
+        job_id,
+        "job",
+        "queued",
+        "job queued",
+        video_path=str(video_path),
+        work_dir=str(layout.root),
+    )
     checkpoint = Checkpoint.load(layout.checkpoint)
 
     try:
         db.update_job(options.database_path, job_id=job_id, status="running", message="copy input")
         if not checkpoint.done("input"):
+            _emit_event(options.database_path, job_id, "input", "started", "copy input")
             checkpoint.start("input", source=str(video_path))
             layout.input_video.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(video_path, layout.input_video)
             checkpoint.finish("input", copied_to=str(layout.input_video))
+            _emit_event(
+                options.database_path,
+                job_id,
+                "input",
+                "done",
+                "input copied",
+                copied_to=str(layout.input_video),
+            )
 
         if not checkpoint.done("frames"):
             db.update_job(options.database_path, job_id=job_id, status="running", message="extract frames")
+            _emit_event(
+                options.database_path,
+                job_id,
+                "frames",
+                "started",
+                "extract frames",
+                fps=options.fps,
+            )
             checkpoint.start("frames", fps=options.fps)
             extracted_count = extract_frames(
                 layout.input_video,
@@ -131,9 +175,26 @@ def process_video(options: ProcessOptions) -> dict[str, Any]:
                 extracted_count=extracted_count,
                 **frame_stats.to_dict(),
             )
+            _emit_event(
+                options.database_path,
+                job_id,
+                "frames",
+                "done",
+                "frames filtered",
+                extracted_count=extracted_count,
+                **frame_stats.to_dict(),
+            )
 
         if not checkpoint.done("sfm"):
             db.update_job(options.database_path, job_id=job_id, status="running", message="run colmap")
+            _emit_event(
+                options.database_path,
+                job_id,
+                "sfm",
+                "started",
+                "run colmap",
+                use_gpu=options.use_gpu,
+            )
             checkpoint.start("sfm")
             sfm_stats = run_new_reconstruction(
                 colmap=require_tool("colmap"),
@@ -144,16 +205,33 @@ def process_video(options: ProcessOptions) -> dict[str, Any]:
                 use_gpu=options.use_gpu,
             )
             checkpoint.finish("sfm", **sfm_stats.to_dict())
+            _emit_event(
+                options.database_path,
+                job_id,
+                "sfm",
+                "done",
+                "colmap completed",
+                **sfm_stats.to_dict(),
+            )
             if sfm_stats.registered_ratio is not None and sfm_stats.registered_ratio < 0.6:
                 checkpoint.fail(
                     "quality_gate",
                     "Registered image ratio is below 60%. Check blur, overlap, and texture richness.",
                     registered_ratio=sfm_stats.registered_ratio,
                 )
+                _emit_event(
+                    options.database_path,
+                    job_id,
+                    "quality_gate",
+                    "failed",
+                    "registered image ratio below 60%",
+                    registered_ratio=sfm_stats.registered_ratio,
+                )
 
         textured_mesh: Path | None = None
         if not options.skip_mvs and not checkpoint.done("mvs"):
             db.update_job(options.database_path, job_id=job_id, status="running", message="run openmvs")
+            _emit_event(options.database_path, job_id, "mvs", "started", "run openmvs")
             checkpoint.start("mvs")
             mvs_stats = run_openmvs(
                 interface_colmap=require_tool("InterfaceCOLMAP"),
@@ -167,9 +245,19 @@ def process_video(options: ProcessOptions) -> dict[str, Any]:
             )
             textured_mesh = Path(mvs_stats.textured_mesh_path)
             checkpoint.finish("mvs", **mvs_stats.to_dict())
+            _emit_event(
+                options.database_path,
+                job_id,
+                "mvs",
+                "done",
+                "openmvs completed",
+                **mvs_stats.to_dict(),
+            )
         elif checkpoint.done("mvs"):
             textured = checkpoint.stages["mvs"].get("textured_mesh_path")
             textured_mesh = Path(textured) if textured else None
+        elif options.skip_mvs:
+            _emit_event(options.database_path, job_id, "mvs", "skipped", "openmvs skipped")
 
         if (
             not options.skip_optimize
@@ -177,6 +265,15 @@ def process_video(options: ProcessOptions) -> dict[str, Any]:
             and not checkpoint.done("optimize")
         ):
             db.update_job(options.database_path, job_id=job_id, status="running", message="run blender")
+            _emit_event(
+                options.database_path,
+                job_id,
+                "optimize",
+                "started",
+                "run blender",
+                collision_mode=options.collision_mode,
+                target_faces=options.target_faces,
+            )
             checkpoint.start("optimize")
             output_fbx = layout.output / f"{job_id}.fbx"
             optimize_stats = run_blender_optimize(
@@ -188,6 +285,16 @@ def process_video(options: ProcessOptions) -> dict[str, Any]:
                 collision_mode=options.collision_mode,
             )
             checkpoint.finish("optimize", **optimize_stats.to_dict())
+            _emit_event(
+                options.database_path,
+                job_id,
+                "optimize",
+                "done",
+                "blender optimization completed",
+                **optimize_stats.to_dict(),
+            )
+        elif options.skip_optimize:
+            _emit_event(options.database_path, job_id, "optimize", "skipped", "optimization skipped")
 
         final_stats = _stage_stats(checkpoint)
         summary_path = layout.output / "summary.json"
@@ -206,6 +313,7 @@ def process_video(options: ProcessOptions) -> dict[str, Any]:
             message="completed",
             stats=final_stats,
         )
+        _emit_event(options.database_path, job_id, "job", "done", "completed")
         return {
             "job_id": job_id,
             "work_dir": str(layout.root),
@@ -214,4 +322,5 @@ def process_video(options: ProcessOptions) -> dict[str, Any]:
         }
     except Exception as exc:
         db.update_job(options.database_path, job_id=job_id, status="failed", message=str(exc))
+        _emit_event(options.database_path, job_id, "job", "failed", str(exc))
         raise

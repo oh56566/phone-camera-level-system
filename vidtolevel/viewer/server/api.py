@@ -176,6 +176,7 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
         websocket: WebSocket,
         database: str = "vidtolevel.sqlite3",
         limit: int = 20,
+        event_limit: int = 50,
         interval: float = 2.0,
     ) -> None:
         await websocket.accept()
@@ -183,7 +184,11 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
         poll_interval = max(0.5, min(interval, 10.0))
         try:
             while True:
-                payload = build_jobs_payload(Path(database), limit=max(1, min(limit, 200)))
+                payload = build_jobs_payload(
+                    Path(database),
+                    limit=max(1, min(limit, 200)),
+                    event_limit=max(1, min(event_limit, 500)),
+                )
                 serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True)
                 if serialized != last_payload:
                     await websocket.send_text(serialized)
