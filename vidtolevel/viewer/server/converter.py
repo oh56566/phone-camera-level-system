@@ -140,5 +140,29 @@ def find_images_dir(root: Path, sparse_model: Path) -> Path | None:
     return None
 
 
+def find_mesh_file(root: Path) -> Path | None:
+    candidates = [
+        root / "openmvs" / "scene_dense_mesh_refine_texture.obj",
+        root / "openmvs" / "scene_dense_mesh_refine.obj",
+        root / "output" / f"{root.name}.obj",
+    ]
+    for candidate in candidates:
+        if candidate.exists() and candidate.is_file():
+            return candidate.resolve()
+
+    search_roots = [
+        root / "openmvs",
+        root / "output",
+        root / "meshes",
+    ]
+    for search_root in search_roots:
+        if not search_root.exists():
+            continue
+        for candidate in sorted(search_root.rglob("*.obj")):
+            if candidate.is_file():
+                return candidate.resolve()
+    return None
+
+
 def _is_sparse_model(path: Path) -> bool:
     return all((path / name).exists() for name in ("cameras.bin", "images.bin", "points3D.bin"))

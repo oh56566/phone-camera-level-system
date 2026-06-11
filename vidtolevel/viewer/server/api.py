@@ -20,6 +20,7 @@ from vidtolevel.viewer.server.converter import (
     find_direct_sparse_model,
     find_first_sparse_model,
     find_images_dir,
+    find_mesh_file,
     pack_points_binary,
 )
 from vidtolevel.viewer.server.coverage import compute_topdown_coverage
@@ -40,6 +41,7 @@ class ViewerProject:
     root: Path
     sparse_model: Path
     images_dir: Path | None
+    mesh_path: Path | None
 
 
 def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
@@ -63,6 +65,7 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
                 "root": str(project.root),
                 "sparseModel": str(project.sparse_model),
                 "imagesDir": str(project.images_dir) if project.images_dir else "",
+                "mesh": str(project.mesh_path) if project.mesh_path else "",
             }
             for project in projects.values()
         ]
@@ -81,6 +84,8 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
             "pointCount": len(model.points3d),
             "bounds": model_bounds(model.points3d, model.images),
             "diagnostics": summarize_camera_path(camera_payload),
+            "meshAvailable": project.mesh_path is not None,
+            "meshUrl": f"/api/{project.id}/mesh.obj" if project.mesh_path else "",
             "checkpoint": str(checkpoint) if checkpoint.exists() else "",
             "summary": str(summary) if summary.exists() else "",
         }
@@ -145,6 +150,13 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return FileResponse(thumbnail_path, media_type="image/jpeg")
+
+    @app.get("/api/{project_id}/mesh.obj")
+    def mesh(project_id: str) -> FileResponse:
+        project = _project_or_404(projects, project_id)
+        if project.mesh_path is None or not project.mesh_path.exists():
+            raise HTTPException(status_code=404, detail="Mesh OBJ not found.")
+        return FileResponse(project.mesh_path, media_type="text/plain")
 
     @app.websocket("/ws/jobs")
     async def jobs_socket(
@@ -241,6 +253,7 @@ def discover_projects(paths: list[Path]) -> dict[str, ViewerProject]:
                 root=candidate,
                 sparse_model=sparse_model,
                 images_dir=find_images_dir(candidate, sparse_model),
+                mesh_path=find_mesh_file(candidate),
             )
     return projects
 

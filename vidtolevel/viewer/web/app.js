@@ -7,6 +7,7 @@ const dom = {
   projectName: document.querySelector("#project-name"),
   projectSelect: document.querySelector("#project-select"),
   layerPoints: document.querySelector("#layer-points"),
+  layerMesh: document.querySelector("#layer-mesh"),
   layerCameras: document.querySelector("#layer-cameras"),
   layerPath: document.querySelector("#layer-path"),
   colorMode: document.querySelector("#color-mode"),
@@ -36,6 +37,7 @@ const state = {
   playing: false,
   playTimer: null,
   pointObject: null,
+  meshObject: null,
   cameraGroup: new THREE.Group(),
   frustumGroup: new THREE.Group(),
   pathLine: null,
@@ -86,6 +88,13 @@ const pointer = new THREE.Vector2();
 const markerGeometry = new THREE.SphereGeometry(0.035, 12, 8);
 const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xe8a84f });
 const selectedMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0xee6a5f });
+const previewMeshMaterial = new THREE.MeshBasicMaterial({
+  color: 0x86b9c8,
+  transparent: true,
+  opacity: 0.42,
+  side: THREE.DoubleSide,
+  depthWrite: false,
+});
 const frustumMaterial = new THREE.LineBasicMaterial({ color: 0x4cc9b0, transparent: true, opacity: 0.68 });
 const pathMaterial = new THREE.LineBasicMaterial({ color: 0xe8a84f, transparent: true, opacity: 0.9 });
 const pathIssueMaterial = new THREE.LineBasicMaterial({ color: 0xee6a5f, transparent: true, opacity: 1.0 });
@@ -111,6 +120,7 @@ function bindControls() {
   });
 
   dom.layerPoints.addEventListener("change", updateLayerVisibility);
+  dom.layerMesh.addEventListener("change", updateLayerVisibility);
   dom.layerCameras.addEventListener("change", updateLayerVisibility);
   dom.layerPath.addEventListener("change", updateLayerVisibility);
   dom.colorMode.addEventListener("change", reloadPointCloud);
@@ -176,6 +186,7 @@ async function loadProject(project, options = {}) {
   dom.timelineRange.value = Math.max(state.cameras.length - 1, 0);
 
   await buildPointCloud(pointsResponse);
+  await loadMeshPreview(status.meshUrl || "");
   rebuildCameraGraphics();
   drawCoverage(coverage);
   updateMetrics(status, coverage);
@@ -214,6 +225,12 @@ function clearSceneData() {
     state.pointObject.geometry.dispose();
     state.pointObject.material.dispose();
     state.pointObject = null;
+  }
+  if (state.meshObject) {
+    scene.remove(state.meshObject);
+    state.meshObject.geometry.dispose();
+    state.meshObject.material.dispose();
+    state.meshObject = null;
   }
   state.cameraGroup.clear();
   state.frustumGroup.clear();
@@ -261,6 +278,78 @@ async function buildPointCloud(response) {
   });
   state.pointObject = new THREE.Points(geometry, material);
   scene.add(state.pointObject);
+}
+
+async function loadMeshPreview(meshUrl) {
+  if (!meshUrl) {
+    return;
+  }
+  setStatus(state.activeProject?.name || "Project", "Loading mesh");
+  const response = await fetch(meshUrl);
+  if (!response.ok) {
+    return;
+  }
+  const text = await response.text();
+  const geometry = parseObjGeometry(text);
+  if (!geometry) {
+    return;
+  }
+  state.meshObject = new THREE.Mesh(geometry, previewMeshMaterial.clone());
+  state.meshObject.name = "preview-mesh";
+  state.meshObject.renderOrder = -1;
+  scene.add(state.meshObject);
+  updateLayerVisibility();
+}
+
+function parseObjGeometry(text) {
+  const vertices = [];
+  const triangles = [];
+  const lines = text.split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("v ")) {
+      const parts = trimmed.split(/\s+/);
+      if (parts.length >= 4) {
+        vertices.push([Number(parts[1]), Number(parts[2]), Number(parts[3])]);
+      }
+    } else if (trimmed.startsWith("f ")) {
+      const indices = trimmed
+        .split(/\s+/)
+        .slice(1)
+        .map((token) => resolveObjIndex(token, vertices.length))
+        .filter((index) => index !== null);
+      for (let index = 1; index < indices.length - 1; index += 1) {
+        triangles.push(indices[0], indices[index], indices[index + 1]);
+      }
+    }
+  }
+
+  if (vertices.length === 0 || triangles.length === 0) {
+    return null;
+  }
+
+  const positions = new Float32Array(triangles.length * 3);
+  for (let index = 0; index < triangles.length; index += 1) {
+    const vertex = vertices[triangles[index]];
+    positions[index * 3] = vertex[0];
+    positions[index * 3 + 1] = vertex[1];
+    positions[index * 3 + 2] = vertex[2];
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+function resolveObjIndex(token, vertexCount) {
+  const raw = Number(token.split("/")[0]);
+  if (!Number.isInteger(raw) || raw === 0) {
+    return null;
+  }
+  const index = raw > 0 ? raw - 1 : vertexCount + raw;
+  return index >= 0 && index < vertexCount ? index : null;
 }
 
 function rebuildCameraGraphics() {
@@ -421,6 +510,9 @@ function selectCamera(event) {
 function updateLayerVisibility() {
   if (state.pointObject) {
     state.pointObject.visible = dom.layerPoints.checked;
+  }
+  if (state.meshObject) {
+    state.meshObject.visible = dom.layerMesh.checked;
   }
   state.cameraGroup.visible = dom.layerCameras.checked;
   state.frustumGroup.visible = dom.layerCameras.checked;

@@ -44,6 +44,7 @@ class ViewerParserTests(unittest.TestCase):
         self.assertIn('"/assets/vendor/examples/jsm/"', index)
         self.assertIn('id="status-live"', index)
         self.assertIn('id="diagnostic-body"', index)
+        self.assertIn('id="layer-mesh"', index)
         self.assertNotIn("unpkg.com", index)
         self.assertTrue(
             (REPO_ROOT / "vidtolevel" / "viewer" / "web" / "vendor" / "three.module.js").exists()
@@ -90,15 +91,18 @@ class ViewerParserTests(unittest.TestCase):
             images_dir = run_root / "colmap" / "images"
             images_dir.mkdir(parents=True)
             (images_dir / "0001.jpg").write_bytes(b"fake-jpeg")
+            _write_obj_mesh(run_root / "openmvs" / "scene_dense_mesh_refine_texture.obj")
             projects = discover_projects([run_root])
 
             self.assertEqual(list(projects), ["run"])
+            self.assertTrue(projects["run"].mesh_path)
 
             app = create_viewer_app([run_root])
             project_endpoint = _endpoint(app, "/api/projects")
             cameras_endpoint = _endpoint(app, "/api/{project_id}/cameras")
             points_endpoint = _endpoint(app, "/api/{project_id}/points")
             status_endpoint = _endpoint(app, "/api/{project_id}/status")
+            mesh_endpoint = _endpoint(app, "/api/{project_id}/mesh.obj")
 
             project_response = project_endpoint()
             self.assertEqual(project_response[0]["id"], "run")
@@ -108,6 +112,8 @@ class ViewerParserTests(unittest.TestCase):
             self.assertIn("diagnostics", status_response)
             self.assertEqual(status_response["cameraCount"], 2)
             self.assertEqual(status_response["diagnostics"]["issueCount"], 0)
+            self.assertTrue(status_response["meshAvailable"])
+            self.assertEqual(status_response["meshUrl"], "/api/run/mesh.obj")
 
             cameras_response = cameras_endpoint("run")
             self.assertEqual(len(cameras_response["cameras"]), 2)
@@ -121,6 +127,10 @@ class ViewerParserTests(unittest.TestCase):
             error_points_response = points_endpoint("run", color_mode="error")
             self.assertEqual(error_points_response.headers["x-vidtolevel-color-mode"], "error")
             self.assertEqual(len(error_points_response.body), 30)
+
+            mesh_response = mesh_endpoint("run")
+            self.assertEqual(mesh_response.media_type, "text/plain")
+            self.assertTrue(str(mesh_response.path).endswith("scene_dense_mesh_refine_texture.obj"))
 
     @unittest.skipIf(
         not (NUMPY_AVAILABLE and FASTAPI_AVAILABLE and CV2_AVAILABLE),
@@ -264,6 +274,23 @@ def _write_sparse_model(path: Path) -> Path:
         struct.pack("<Q", 2)
         + _point_record(1, (0.0, 0.0, 2.0), (255, 0, 0), 0.5, [(1, 0)])
         + _point_record(2, (1.0, 0.0, 2.0), (0, 255, 0), 0.7, [(2, 0)])
+    )
+    return path
+
+
+def _write_obj_mesh(path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "\n".join(
+            [
+                "v 0 0 0",
+                "v 1 0 0",
+                "v 0 1 0",
+                "f 1 2 3",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
     )
     return path
 

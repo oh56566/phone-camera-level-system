@@ -21,7 +21,7 @@ Updated: 2026-06-11
 | V0: Static Viewer | Complete | COLMAP binary parser, FastAPI static/API serving, binary point stream, Three.js sparse point view, camera frustums, path, timeline, and local vendor assets are working. |
 | V1: Diagnostics | Complete | Frustum click selection, cached frame thumbnails, camera path, timeline, metrics, coverage panel, point render modes, path issue highlighting, and diagnostic reason summaries are present. |
 | V2: Real-time Monitoring | In progress | `/ws/jobs` streams SQLite job status and stage events. `/ws/{project_id}` watches sparse model signatures, reports compact camera/point diffs, and refreshes viewer data when snapshots change. COLMAP mapper snapshot settings and snapshot-only run discovery are wired. |
-| V3: Dense Data + Mesh Preview | Not started | Dense point downsampling, GLB conversion, mesh preview, wireframe/texture toggles remain. |
+| V3: Dense Data + Mesh Preview | In progress | Simple OBJ mesh preview is available as a translucent viewport layer. Dense point downsampling, GLB conversion, texture preview, and wireframe/texture toggles remain. |
 | V4: Coverage + Session Compare | Partial | Coverage grid API exists. Session coloring/diff reports and mobile capture-mode UI remain. |
 | V5: Finish | Partial | `vidtolevel viewer` command launches server and browser. Measurement tools, screenshots, view presets, and settings persistence remain. |
 
@@ -37,6 +37,7 @@ Updated: 2026-06-11
 - Viewer project WebSocket payload includes compact camera/point diff data.
 - COLMAP mapper commands include snapshot flags when `--mapper-snapshot-frames-freq` is enabled.
 - Viewer discovery loads child run projects from parent folders and handles snapshot-only sparse models.
+- Viewer simple mesh preview renders the first available OBJ mesh in browser.
 - `vidtolevel viewer` renders a fixture sparse model in browser.
 - Viewer API returns projects, status, cameras, points, and coverage.
 - Viewer uses local Three.js/OrbitControls assets instead of an external CDN.
@@ -51,6 +52,6 @@ Updated: 2026-06-11
 
 1. Phase 0 first real phone-video smoke test.
 2. Phase 4 collision upgrade: separate ground proxy from building proxies.
-3. Viewer V3 mesh preview: convert textured mesh outputs to GLB for inspection.
+3. Viewer V3 mesh preview: textured GLB conversion and wireframe/texture toggles.
 4. Phase 2 failure reports: parse COLMAP/OpenMVS logs into clearer recapture guidance.
 5. Phase 6 operations: single-GPU queue locking and long-running job recovery.

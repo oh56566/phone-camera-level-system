@@ -45,7 +45,8 @@ the project can resume without relying on conversation context.
 - V2: Compact live camera/point diff messages. Done.
 - V2: COLMAP mapper snapshot CLI/settings. Done.
 - V2: Automatic run/snapshot folder discovery. Done.
-- V3: dense point downsampling and mesh-to-GLB preview.
+- V3: simple OBJ mesh preview. Done.
+- V3: dense point downsampling and textured GLB preview.
 - V4: session toggles, session colors, and coverage diff mode.
 - V5: view presets, measurement tool, screenshot export, settings persistence.
 
@@ -56,6 +57,7 @@ the project can resume without relying on conversation context.
 
 ## Completed Recently
 
+- Viewer V3 simple mesh preview: first available `.obj` mesh is served and rendered as a translucent viewport layer.
 - Viewer V1 diagnostics summary: side panel shows path issue counts by reason.
 - Viewer V2 compact sparse diffs: project WebSocket reports camera/point count deltas and ID samples.
 - COLMAP mapper snapshots: `process` and `add-session` can write sparse snapshots for live viewer refresh.
