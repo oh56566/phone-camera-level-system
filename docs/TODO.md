@@ -49,6 +49,7 @@ the project can resume without relying on conversation context.
 - V2: Automatic run/snapshot folder discovery. Done.
 - V3: simple OBJ mesh preview. Done.
 - V3: mesh preview render controls for shaded/wire/both modes and opacity. Done.
+- V3: OBJ MTL/JPG texture preview. Done.
 - V3: GLB/GLTF mesh discovery, serving, and browser preview. Done.
 - V3: dense point downsampling and richer texture inspection tools.
 - V4: session toggles, session colors, and coverage diff mode.
@@ -63,6 +64,7 @@ the project can resume without relying on conversation context.
 
 - Real phone-video smoke: `vidtolevel process IMG_0001.mov --job-id phone_img_0001_smoke_v2 --skip-optimize` extracted 107 frames, accepted 91, registered 91/91 in COLMAP, densified 2,452,062 points, reconstructed a 1,774,552-vertex raw mesh, refined to 309,546 vertices / 618,124 faces, textured OBJ output, and passed the quality report with no blocking issue.
 - COLMAP multi-model selection fix: when mapper emits multiple sparse reconstructions, SFM now analyzes each candidate and selects the model with the most registered images; MVS and Viewer use the selected/largest sparse model instead of assuming `sparse/0`.
+- Viewer OBJ texture preview: OBJ meshes now parse `mtllib`, `usemtl`, `vt`, and MTL `map_Kd`, then load JPG/PNG companion textures through `/mesh-assets/`.
 - Windows OpenMVS pipeline fix: `run_openmvs` now runs COLMAP `image_undistorter`, imports the undistorted dense workspace with `InterfaceCOLMAP`, and runs OpenMVS commands from that workspace so image and mesh companion paths resolve correctly.
 - Synthetic full MVS smoke: `vidtolevel process --skip-optimize` on `.vidtolevel_smoke/synthetic_phone_like.mp4` registered 24/24 frames, densified on RTX 4070 Super CUDA, generated PLY mesh stages, textured OBJ/MTL/JPG output, and rendered the OBJ mesh in Viewer.
 - OpenMVS v2.4 mesh flow: `ReconstructMesh` output is treated as a `.ply` mesh, and `RefineMesh` / `TextureMesh` consume it through `-m`.

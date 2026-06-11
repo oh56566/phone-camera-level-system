@@ -41,6 +41,9 @@ class ViewerParserTests(unittest.TestCase):
         index = (REPO_ROOT / "vidtolevel" / "viewer" / "web" / "index.html").read_text(
             encoding="utf-8"
         )
+        app = (REPO_ROOT / "vidtolevel" / "viewer" / "web" / "app.js").read_text(
+            encoding="utf-8"
+        )
         self.assertIn('"/assets/vendor/three.module.js"', index)
         self.assertIn('"/assets/vendor/examples/jsm/"', index)
         self.assertIn('id="status-live"', index)
@@ -48,6 +51,8 @@ class ViewerParserTests(unittest.TestCase):
         self.assertIn('id="layer-mesh"', index)
         self.assertIn('id="mesh-mode"', index)
         self.assertIn('id="mesh-opacity"', index)
+        self.assertIn("map_Kd", app)
+        self.assertIn("TextureLoader", app)
         self.assertNotIn("unpkg.com", index)
         self.assertTrue(
             (REPO_ROOT / "vidtolevel" / "viewer" / "web" / "vendor" / "three.module.js").exists()

@@ -303,28 +303,33 @@ async function loadMeshPreview(meshUrl, meshFormat = "", meshResourceUrl = "") {
     await loadGltfMeshPreview(meshUrl, meshResourceUrl);
     return;
   }
-  await loadObjMeshPreview(meshUrl);
+  await loadObjMeshPreview(meshUrl, meshResourceUrl);
 }
 
-async function loadObjMeshPreview(meshUrl) {
+async function loadObjMeshPreview(meshUrl, meshResourceUrl) {
   const response = await fetch(meshUrl);
   if (!response.ok) {
     return;
   }
   const text = await response.text();
-  const geometry = parseObjGeometry(text);
-  if (!geometry) {
+  const parsed = parseObjMesh(text);
+  if (!parsed || parsed.geometries.length === 0) {
     return;
   }
+  const materials = await loadObjMaterialLibrary(parsed.materialLibraries, meshResourceUrl);
   const group = new THREE.Group();
   group.name = "preview-mesh";
-
-  const fill = new THREE.Mesh(geometry, previewMeshMaterial.clone());
+  const fill = new THREE.Group();
   fill.name = "preview-mesh-fill";
-  const wire = new THREE.LineSegments(
-    new THREE.WireframeGeometry(geometry),
-    previewMeshWireMaterial.clone(),
-  );
+
+  for (const geometryInfo of parsed.geometries) {
+    const material = makeObjPreviewMaterial(geometryInfo.materialName, materials, meshResourceUrl);
+    const mesh = new THREE.Mesh(geometryInfo.geometry, material);
+    mesh.name = geometryInfo.materialName ? `preview-mesh-${geometryInfo.materialName}` : "preview-mesh-part";
+    fill.add(mesh);
+  }
+
+  const wire = buildWireframeObject(fill);
   wire.name = "preview-mesh-wire";
 
   registerMeshPreview(group, fill, wire);
@@ -367,10 +372,10 @@ function disposeObjectTree(object) {
     if (child.material) {
       if (Array.isArray(child.material)) {
         for (const material of child.material) {
-          material.dispose();
+          disposeMaterial(material);
         }
       } else {
-        child.material.dispose();
+        disposeMaterial(child.material);
       }
     }
   });
@@ -414,55 +419,168 @@ function buildWireframeObject(object) {
   return group;
 }
 
-function parseObjGeometry(text) {
+function parseObjMesh(text) {
   const vertices = [];
-  const triangles = [];
+  const textureCoords = [];
+  const materialLibraries = [];
+  const groups = new Map();
+  let activeMaterial = "";
   const lines = text.split(/\r?\n/);
   for (const line of lines) {
     const trimmed = line.trim();
-    if (trimmed.startsWith("v ")) {
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+    if (trimmed.startsWith("mtllib ")) {
+      materialLibraries.push(trimmed.slice(7).trim());
+    } else if (trimmed.startsWith("usemtl ")) {
+      activeMaterial = trimmed.slice(7).trim();
+    } else if (trimmed.startsWith("v ")) {
       const parts = trimmed.split(/\s+/);
       if (parts.length >= 4) {
         vertices.push([Number(parts[1]), Number(parts[2]), Number(parts[3])]);
       }
+    } else if (trimmed.startsWith("vt ")) {
+      const parts = trimmed.split(/\s+/);
+      if (parts.length >= 3) {
+        textureCoords.push([Number(parts[1]), Number(parts[2])]);
+      }
     } else if (trimmed.startsWith("f ")) {
-      const indices = trimmed
+      const refs = trimmed
         .split(/\s+/)
         .slice(1)
-        .map((token) => resolveObjIndex(token, vertices.length))
-        .filter((index) => index !== null);
-      for (let index = 1; index < indices.length - 1; index += 1) {
-        triangles.push(indices[0], indices[index], indices[index + 1]);
+        .map((token) => resolveObjRef(token, vertices.length, textureCoords.length))
+        .filter((ref) => ref.vertexIndex !== null);
+      for (let index = 1; index < refs.length - 1; index += 1) {
+        const group = objMaterialGroup(groups, activeMaterial);
+        group.triangles.push(refs[0], refs[index], refs[index + 1]);
       }
     }
   }
 
-  if (vertices.length === 0 || triangles.length === 0) {
+  if (vertices.length === 0 || groups.size === 0) {
     return null;
   }
 
-  const positions = new Float32Array(triangles.length * 3);
-  for (let index = 0; index < triangles.length; index += 1) {
-    const vertex = vertices[triangles[index]];
-    positions[index * 3] = vertex[0];
-    positions[index * 3 + 1] = vertex[1];
-    positions[index * 3 + 2] = vertex[2];
+  const geometries = [];
+  for (const [materialName, group] of groups) {
+    const positions = new Float32Array(group.triangles.length * 3);
+    const uvs = new Float32Array(group.triangles.length * 2);
+    let hasUv = false;
+    for (let index = 0; index < group.triangles.length; index += 1) {
+      const ref = group.triangles[index];
+      const vertex = vertices[ref.vertexIndex];
+      positions[index * 3] = vertex[0];
+      positions[index * 3 + 1] = vertex[1];
+      positions[index * 3 + 2] = vertex[2];
+      if (ref.textureIndex !== null && textureCoords[ref.textureIndex]) {
+        const uv = textureCoords[ref.textureIndex];
+        uvs[index * 2] = uv[0];
+        uvs[index * 2 + 1] = uv[1];
+        hasUv = true;
+      }
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    if (hasUv) {
+      geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+    }
+    geometry.computeVertexNormals();
+    geometry.computeBoundingSphere();
+    geometries.push({ materialName, geometry });
   }
 
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geometry.computeVertexNormals();
-  geometry.computeBoundingSphere();
-  return geometry;
+  return { materialLibraries, geometries };
 }
 
-function resolveObjIndex(token, vertexCount) {
-  const raw = Number(token.split("/")[0]);
+function objMaterialGroup(groups, materialName) {
+  if (!groups.has(materialName)) {
+    groups.set(materialName, { triangles: [] });
+  }
+  return groups.get(materialName);
+}
+
+function resolveObjRef(token, vertexCount, textureCount) {
+  const parts = token.split("/");
+  return {
+    vertexIndex: resolveObjIndex(parts[0], vertexCount),
+    textureIndex: parts.length > 1 && parts[1] ? resolveObjIndex(parts[1], textureCount) : null,
+  };
+}
+
+function resolveObjIndex(value, itemCount) {
+  const raw = Number(value);
   if (!Number.isInteger(raw) || raw === 0) {
     return null;
   }
-  const index = raw > 0 ? raw - 1 : vertexCount + raw;
-  return index >= 0 && index < vertexCount ? index : null;
+  const index = raw > 0 ? raw - 1 : itemCount + raw;
+  return index >= 0 && index < itemCount ? index : null;
+}
+
+async function loadObjMaterialLibrary(materialLibraries, meshResourceUrl) {
+  const materials = new Map();
+  if (!meshResourceUrl) {
+    return materials;
+  }
+  for (const libraryName of materialLibraries) {
+    const response = await fetch(meshAssetUrl(meshResourceUrl, libraryName));
+    if (!response.ok) {
+      continue;
+    }
+    parseMtlLibrary(await response.text(), materials);
+  }
+  return materials;
+}
+
+function parseMtlLibrary(text, materials) {
+  let current = null;
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+    const [keyword, ...rest] = trimmed.split(/\s+/);
+    const value = rest.join(" ");
+    if (keyword === "newmtl") {
+      current = { name: value, diffuse: null, mapKd: "" };
+      materials.set(value, current);
+    } else if (current && keyword === "Kd" && rest.length >= 3) {
+      current.diffuse = rest.slice(0, 3).map(Number);
+    } else if (current && keyword === "map_Kd") {
+      current.mapKd = value;
+    }
+  }
+}
+
+function makeObjPreviewMaterial(materialName, materials, meshResourceUrl) {
+  const info = materials.get(materialName);
+  const material = previewMeshMaterial.clone();
+  if (info?.diffuse) {
+    material.color.setRGB(info.diffuse[0], info.diffuse[1], info.diffuse[2]);
+  }
+  if (info?.mapKd && meshResourceUrl) {
+    const texture = new THREE.TextureLoader().load(meshAssetUrl(meshResourceUrl, info.mapKd));
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
+    material.map = texture;
+    material.color.set(0xffffff);
+    material.needsUpdate = true;
+  }
+  return material;
+}
+
+function meshAssetUrl(meshResourceUrl, assetPath) {
+  return `${meshResourceUrl}${assetPath.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+function disposeMaterial(material) {
+  for (const key of ["map", "normalMap", "roughnessMap", "metalnessMap", "aoMap", "emissiveMap"]) {
+    if (material[key]) {
+      material[key].dispose();
+    }
+  }
+  material.dispose();
 }
 
 function rebuildCameraGraphics() {
