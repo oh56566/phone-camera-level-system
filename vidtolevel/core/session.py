@@ -187,6 +187,7 @@ def add_project_session(options: SessionOptions) -> dict[str, Any]:
                 layout.input_video,
                 layout.extracted_frames,
                 fps=options.fps,
+                ffmpeg=require_tool("ffmpeg"),
                 log_path=layout.logs / "ffmpeg_extract_frames.log",
             )
             frame_stats = filter_frames(
@@ -202,12 +203,12 @@ def add_project_session(options: SessionOptions) -> dict[str, Any]:
                 session_id,
                 layout.image_list,
             )
+            frame_payload = frame_stats.to_dict()
             checkpoint.finish(
                 "frames",
-                extracted_count=extracted_count,
                 staged_project_images=len(relative_images),
                 image_list=str(layout.image_list),
-                **frame_stats.to_dict(),
+                **frame_payload,
             )
             _emit_event(
                 jobs_db,
@@ -215,10 +216,9 @@ def add_project_session(options: SessionOptions) -> dict[str, Any]:
                 "frames",
                 "done",
                 "frames staged",
-                extracted_count=extracted_count,
                 staged_project_images=len(relative_images),
                 image_list=str(layout.image_list),
-                **frame_stats.to_dict(),
+                **frame_payload,
             )
 
         if not checkpoint.done("sfm"):
@@ -283,6 +283,7 @@ def add_project_session(options: SessionOptions) -> dict[str, Any]:
             _emit_event(jobs_db, session_id, "mvs", "started", "run project openmvs")
             checkpoint.start("mvs")
             mvs_stats = run_openmvs(
+                colmap=require_tool("colmap"),
                 interface_colmap=require_tool("InterfaceCOLMAP"),
                 densify_point_cloud=require_tool("DensifyPointCloud"),
                 reconstruct_mesh=require_tool("ReconstructMesh"),

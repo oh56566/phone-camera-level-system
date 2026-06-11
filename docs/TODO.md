@@ -11,8 +11,9 @@ the project can resume without relying on conversation context.
    - Done locally: FFmpeg, COLMAP, Blender, and OpenMVS are discoverable by `vidtolevel doctor`.
    - Done on Windows RTX 4070 Super: COLMAP 4.1 dev CUDA build runs GPU feature extraction and matching.
    - Done on Windows RTX 4070 Super: synthetic video sparse smoke registers 24/24 frames and opens in `vidtolevel viewer`.
+   - Done on Windows RTX 4070 Super: synthetic full MVS smoke runs COLMAP undistortion plus OpenMVS densify/reconstruct/refine/texture and exports a textured OBJ mesh.
    - Run a short real phone-video pipeline with `--skip-optimize` first once a sample `.mp4` is available.
-   - Resolve Windows OpenMVS v2.4.0 binary launch failure before full MVS smoke; both CPU and CUDA release binaries currently exit 1 with empty logs.
+   - Confirm the real phone-video camera path, sparse points, and mesh preview in `vidtolevel viewer` before marking Phase 0 complete.
 
 2. Viewer V2 live monitoring
    - Done: add WebSocket endpoint for job state backed by SQLite polling.
@@ -56,11 +57,13 @@ the project can resume without relying on conversation context.
 ## Current Known Blockers
 
 - Full video-to-FBX validation now needs a short real sample phone video.
-- Windows OpenMVS v2.4.0 release binaries are discoverable but currently exit 1 with empty logs before producing `scene.mvs`.
-- Full OpenMVS/mesh validation is blocked until the Windows OpenMVS runtime issue is resolved.
+- No current Windows OpenMVS runtime blocker is known. If MVS fails, inspect OpenMVS per-tool logs under `openmvs/colmap_dense/*.log` in addition to VidToLevel logs.
 
 ## Completed Recently
 
+- Windows OpenMVS pipeline fix: `run_openmvs` now runs COLMAP `image_undistorter`, imports the undistorted dense workspace with `InterfaceCOLMAP`, and runs OpenMVS commands from that workspace so image and mesh companion paths resolve correctly.
+- Synthetic full MVS smoke: `vidtolevel process --skip-optimize` on `.vidtolevel_smoke/synthetic_phone_like.mp4` registered 24/24 frames, densified on RTX 4070 Super CUDA, generated PLY mesh stages, textured OBJ/MTL/JPG output, and rendered the OBJ mesh in Viewer.
+- OpenMVS v2.4 mesh flow: `ReconstructMesh` output is treated as a `.ply` mesh, and `RefineMesh` / `TextureMesh` consume it through `-m`.
 - Windows RTX smoke: local `.tools` FFmpeg, COLMAP CUDA, and OpenMVS binaries are discoverable by `vidtolevel doctor`; Blender 5.0 is discovered from Program Files.
 - COLMAP 4.x compatibility: GPU flags now adapt to `FeatureExtraction.use_gpu` / `FeatureMatching.use_gpu` while preserving old `Sift*` fallback.
 - Synthetic sparse pipeline smoke: `vidtolevel process --skip-mvs --skip-optimize` registered 24/24 frames and the viewer rendered 24 cameras / 17,817 points.

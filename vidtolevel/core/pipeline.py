@@ -236,6 +236,7 @@ def process_video(options: ProcessOptions) -> dict[str, Any]:
             _emit_event(options.database_path, job_id, "mvs", "started", "run openmvs")
             checkpoint.start("mvs")
             mvs_stats = run_openmvs(
+                colmap=require_tool("colmap"),
                 interface_colmap=require_tool("InterfaceCOLMAP"),
                 densify_point_cloud=require_tool("DensifyPointCloud"),
                 reconstruct_mesh=require_tool("ReconstructMesh"),
