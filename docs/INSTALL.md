@@ -41,12 +41,31 @@ On macOS with Homebrew, this helper installs the packages Homebrew can provide:
 bash scripts/install_macos_tools.sh
 ```
 
-OpenMVS still needs a separate binary install or source build. After placing the
-OpenMVS binaries on `PATH`, verify them with:
+The macOS helper also downloads the official OpenMVS macOS arm64 prebuilt
+release into `.tools/openmvs/bin` unless `SKIP_OPENMVS=1` is set. To install
+only OpenMVS:
+
+```bash
+bash scripts/install_openmvs_macos.sh
+```
+
+VidToLevel discovers `.tools/openmvs/bin` automatically when commands are run
+from this repository. From another working directory, set:
+
+```bash
+export VIDTOLEVEL_OPENMVS_BIN="/absolute/path/to/openmvs/bin"
+```
+
+After placing the OpenMVS binaries on `PATH`, in `.tools/openmvs/bin`, or in
+`VIDTOLEVEL_OPENMVS_BIN`, verify them with:
 
 ```bash
 bash scripts/check_openmvs_path.sh
 ```
+
+Current local note: Homebrew's COLMAP package on this Mac reports `without
+CUDA`. That is enough for CPU smoke tests here, but the Phase 0 CUDA check must
+be repeated on the RTX 4070 Super machine with a CUDA-enabled COLMAP build.
 
 ## Smoke Test
 

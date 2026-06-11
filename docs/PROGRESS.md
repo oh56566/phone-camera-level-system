@@ -6,7 +6,7 @@ Updated: 2026-06-11
 
 | Phase | Status | Notes |
 |---|---:|---|
-| Phase 0: Environment | Partial | Python package and tests work. `ffmpeg` is available. `colmap`, `blender`, and OpenMVS binaries are still missing on this machine. |
+| Phase 0: Environment | Near complete | Python package and tests work. FFmpeg, COLMAP, Blender, and OpenMVS are available locally. Remaining validation: short real phone-video smoke test and CUDA-enabled COLMAP check on the RTX machine. |
 | Phase 1: Shooting Protocol | Drafted | `docs/SHOOTING_GUIDE.md` contains the first capture checklist and residential street guidance. |
 | Phase 2: Core Pipeline | Implemented scaffold | `vidtolevel process` extracts/filter frames, runs COLMAP/OpenMVS wrappers, records checkpoints, writes SQLite job state, and emits quality reports. Full run awaits external tools. |
 | Phase 3: Incremental Sessions | Implemented scaffold | `vidtolevel add-session`, persistent project images/database, active sparse model replacement, bundle adjustment wrapper, and coverage command are present. Changed-area-only redensification is not implemented yet. |
@@ -27,7 +27,9 @@ Updated: 2026-06-11
 
 ## Verified
 
-- `pytest`: 12 tests passing.
+- `pytest`: 13 tests passing.
+- `vidtolevel doctor`: FFmpeg, COLMAP, Blender, and required OpenMVS binaries resolve successfully.
+- OpenMVS v2.4.0 macOS arm64 prebuilt launches `InterfaceCOLMAP --help`.
 - `vidtolevel viewer` renders a fixture sparse model in browser.
 - Viewer API returns projects, status, cameras, points, and coverage.
 - Viewer uses local Three.js/OrbitControls assets instead of an external CDN.
@@ -35,11 +37,12 @@ Updated: 2026-06-11
 
 ## Current Blockers
 
-- External photogrammetry tools are not installed locally: COLMAP, Blender, OpenMVS.
+- A real short phone video is needed for end-to-end video-to-sparse/MVS smoke testing.
+- CUDA validation cannot be completed on this Mac because Homebrew COLMAP reports `without CUDA`.
 
 ## Next Work Queue
 
-1. Phase 0 external tool install and first real phone-video smoke test.
+1. Phase 0 first real phone-video smoke test.
 2. Phase 4 collision upgrade: separate ground proxy from building proxies.
 3. Viewer V2 live monitoring: WebSocket job state and COLMAP snapshot updates.
 4. Viewer V3 mesh preview: convert textured mesh outputs to GLB for inspection.

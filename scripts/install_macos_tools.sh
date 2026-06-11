@@ -12,20 +12,8 @@ if ! command -v blender >/dev/null 2>&1; then
   brew install --cask blender
 fi
 
-cat <<'EOF'
+if [[ "${SKIP_OPENMVS:-0}" != "1" ]]; then
+  bash "$(dirname "$0")/install_openmvs_macos.sh"
+fi
 
-OpenMVS is not available as a standard Homebrew formula on this machine.
-Install or build OpenMVS separately, then make these binaries available on PATH:
-
-  InterfaceCOLMAP
-  DensifyPointCloud
-  ReconstructMesh
-  RefineMesh
-  TextureMesh
-
-After installing OpenMVS, run:
-
-  vidtolevel doctor
-
-EOF
-
+vidtolevel doctor

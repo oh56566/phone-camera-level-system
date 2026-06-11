@@ -1,10 +1,20 @@
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
+
+
+OPENMVS_TOOL_NAMES = {
+    "InterfaceCOLMAP",
+    "DensifyPointCloud",
+    "ReconstructMesh",
+    "RefineMesh",
+    "TextureMesh",
+}
 
 
 class ToolError(RuntimeError):
@@ -28,7 +38,15 @@ class CommandResult:
 
 
 def which(name: str) -> str | None:
-    return shutil.which(name)
+    explicit = _which_in_configured_dirs(name)
+    if explicit:
+        return explicit
+
+    resolved = shutil.which(name)
+    if resolved:
+        return resolved
+
+    return _which_in_local_tool_dirs(name)
 
 
 def require_tool(name: str) -> str:
@@ -38,6 +56,50 @@ def require_tool(name: str) -> str:
             f"Required tool '{name}' was not found on PATH. Install it or add it to PATH."
         )
     return resolved
+
+
+def _which_in_configured_dirs(name: str) -> str | None:
+    directories: list[Path] = []
+    if name in OPENMVS_TOOL_NAMES:
+        openmvs_bin = os.environ.get("VIDTOLEVEL_OPENMVS_BIN")
+        if openmvs_bin:
+            directories.append(Path(openmvs_bin))
+
+    tool_paths = os.environ.get("VIDTOLEVEL_TOOL_PATHS")
+    if tool_paths:
+        directories.extend(Path(entry) for entry in tool_paths.split(os.pathsep) if entry)
+
+    return _first_executable(name, directories)
+
+
+def _which_in_local_tool_dirs(name: str) -> str | None:
+    if name not in OPENMVS_TOOL_NAMES:
+        return None
+
+    package_root = Path(__file__).resolve().parents[2]
+    roots = [Path.cwd(), package_root]
+    directories = _dedupe_paths(root / ".tools" / "openmvs" / "bin" for root in roots)
+    return _first_executable(name, directories)
+
+
+def _first_executable(name: str, directories: Sequence[Path]) -> str | None:
+    for directory in directories:
+        candidate = directory / name
+        if candidate.is_file() and os.access(candidate, os.X_OK):
+            return str(candidate)
+    return None
+
+
+def _dedupe_paths(paths: Sequence[Path]) -> list[Path]:
+    seen: set[str] = set()
+    unique: list[Path] = []
+    for path in paths:
+        key = str(path.resolve() if path.exists() else path.absolute())
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(path)
+    return unique
 
 
 def run_command(
@@ -100,4 +162,3 @@ def output_contains_oom(text: str) -> bool:
         "std::bad_alloc",
     ]
     return any(needle in lower for needle in needles)
-

@@ -8,10 +8,10 @@ the project can resume without relying on conversation context.
 ## Active Priority
 
 1. Phase 0 real toolchain smoke test
-   - Install or add to `PATH`: COLMAP, Blender, OpenMVS binaries.
-   - Run `vidtolevel doctor`.
-   - Run a short phone-video pipeline with `--skip-optimize` first.
+   - Done locally: FFmpeg, COLMAP, Blender, and OpenMVS are discoverable by `vidtolevel doctor`.
+   - Run a short phone-video pipeline with `--skip-optimize` first once a sample `.mp4` is available.
    - Confirm sparse model opens in `vidtolevel viewer`.
+   - Repeat COLMAP GPU verification on the RTX 4070 Super machine; this Mac's Homebrew COLMAP is `without CUDA`.
 
 2. Viewer V2 live monitoring
    - Add WebSocket endpoint for job state.
@@ -44,12 +44,13 @@ the project can resume without relying on conversation context.
 
 ## Current Known Blockers
 
-- `ffmpeg` is available locally.
-- `colmap`, `blender`, and OpenMVS binaries are not available on `PATH`.
-- Full video-to-FBX validation is blocked until those external tools are installed.
+- Full video-to-FBX validation now needs a short real sample phone video.
+- COLMAP CUDA validation is blocked on this Mac because the installed Homebrew build reports `without CUDA`; run that check on the RTX 4070 Super machine.
 
 ## Completed Recently
 
+- Phase 0 tool discovery: FFmpeg, COLMAP, Blender, and OpenMVS v2.4.0 are available locally.
+- Added macOS OpenMVS prebuilt installer and local `.tools/openmvs/bin` discovery.
 - Viewer V1 point color modes: RGB, reprojection error, observation count, session.
 - Viewer V1 path issue highlighting: large camera gaps and weak observations.
 - Viewer V1 cached thumbnails: `/thumb` returns 320px cached JPEGs.
