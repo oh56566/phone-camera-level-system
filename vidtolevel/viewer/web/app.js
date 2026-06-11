@@ -321,9 +321,13 @@ async function loadObjMeshPreview(meshUrl, meshResourceUrl) {
   group.name = "preview-mesh";
   const fill = new THREE.Group();
   fill.name = "preview-mesh-fill";
+  let textureMapCount = 0;
 
   for (const geometryInfo of parsed.geometries) {
     const material = makeObjPreviewMaterial(geometryInfo.materialName, materials, meshResourceUrl);
+    if (material.map) {
+      textureMapCount += 1;
+    }
     const mesh = new THREE.Mesh(geometryInfo.geometry, material);
     mesh.name = geometryInfo.materialName ? `preview-mesh-${geometryInfo.materialName}` : "preview-mesh-part";
     fill.add(mesh);
@@ -333,6 +337,11 @@ async function loadObjMeshPreview(meshUrl, meshResourceUrl) {
   wire.name = "preview-mesh-wire";
 
   registerMeshPreview(group, fill, wire);
+  if (textureMapCount > 0) {
+    dom.meshMode.value = "shaded";
+    dom.meshOpacity.value = "100";
+    updateMeshDisplay();
+  }
 }
 
 async function loadGltfMeshPreview(meshUrl, meshResourceUrl) {
