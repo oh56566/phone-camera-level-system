@@ -9,6 +9,7 @@ from pathlib import Path
 
 NUMPY_AVAILABLE = importlib.util.find_spec("numpy") is not None
 FASTAPI_AVAILABLE = importlib.util.find_spec("fastapi") is not None
+CV2_AVAILABLE = importlib.util.find_spec("cv2") is not None
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -107,6 +108,36 @@ class ViewerParserTests(unittest.TestCase):
             error_points_response = points_endpoint("run", color_mode="error")
             self.assertEqual(error_points_response.headers["x-vidtolevel-color-mode"], "error")
             self.assertEqual(len(error_points_response.body), 30)
+
+    @unittest.skipIf(
+        not (NUMPY_AVAILABLE and FASTAPI_AVAILABLE and CV2_AVAILABLE),
+        "viewer thumbnail dependencies are not installed",
+    )
+    def test_viewer_thumbnail_endpoint_returns_cached_jpeg(self) -> None:
+        import cv2
+        import numpy as np
+
+        from vidtolevel.viewer.server.api import create_viewer_app
+
+        with tempfile.TemporaryDirectory() as tmp:
+            run_root = Path(tmp) / "run"
+            _write_sparse_model(run_root / "colmap" / "sparse" / "0")
+            images_dir = run_root / "colmap" / "images"
+            images_dir.mkdir(parents=True)
+            image = np.zeros((480, 640, 3), dtype=np.uint8)
+            image[:, :, 1] = 180
+            self.assertTrue(cv2.imwrite(str(images_dir / "0001.jpg"), image))
+
+            app = create_viewer_app([run_root])
+            thumbnail_endpoint = _endpoint(app, "/api/{project_id}/thumb/{image_name:path}")
+            response = thumbnail_endpoint("run", "0001.jpg")
+
+            self.assertEqual(response.media_type, "image/jpeg")
+            self.assertIn(".vidtolevel_viewer", str(response.path))
+            self.assertTrue(Path(response.path).exists())
+            cached = cv2.imread(str(response.path))
+            self.assertIsNotNone(cached)
+            self.assertLessEqual(max(cached.shape[:2]), 320)
 
 
 def _write_sparse_model(path: Path) -> Path:

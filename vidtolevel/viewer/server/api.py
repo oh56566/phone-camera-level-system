@@ -21,6 +21,7 @@ from vidtolevel.viewer.server.converter import (
 )
 from vidtolevel.viewer.server.coverage import compute_topdown_coverage
 from vidtolevel.viewer.server.diagnostics import annotate_camera_path
+from vidtolevel.viewer.server.thumbnails import build_cached_thumbnail
 
 
 @dataclass(frozen=True)
@@ -153,7 +154,14 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail="Invalid image path.")
         if not image_path.exists():
             raise HTTPException(status_code=404, detail="Image not found.")
-        return FileResponse(image_path)
+        try:
+            thumbnail_path = build_cached_thumbnail(
+                project_root=project.root,
+                source_path=image_path,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return FileResponse(thumbnail_path, media_type="image/jpeg")
 
     return app
 
