@@ -6,7 +6,7 @@ Updated: 2026-06-11
 
 | Phase | Status | Notes |
 |---|---:|---|
-| Phase 0: Environment | Near complete | Python package and tests work. FFmpeg, COLMAP, Blender, and OpenMVS are available locally. Remaining validation: short real phone-video smoke test and CUDA-enabled COLMAP check on the RTX machine. |
+| Phase 0: Environment | Near complete | Python package and tests work. Windows RTX 4070 Super has local FFmpeg, CUDA COLMAP, Blender, and discoverable OpenMVS binaries. CUDA COLMAP feature extraction/matching is verified. Remaining validation: short real phone-video smoke test and Windows OpenMVS runtime fix. |
 | Phase 1: Shooting Protocol | Drafted | `docs/SHOOTING_GUIDE.md` contains the first capture checklist and residential street guidance. |
 | Phase 2: Core Pipeline | Implemented scaffold | `vidtolevel process` extracts/filter frames, runs COLMAP/OpenMVS wrappers, records checkpoints, writes SQLite job state, and emits quality reports. Full run awaits external tools. |
 | Phase 3: Incremental Sessions | Implemented scaffold | `vidtolevel add-session`, persistent project images/database, active sparse model replacement, bundle adjustment wrapper, and coverage command are present. Changed-area-only redensification is not implemented yet. |
@@ -27,7 +27,14 @@ Updated: 2026-06-11
 
 ## Verified
 
-- `pytest`: 19 tests passing.
+- `pytest`: 22 tests passing on Windows Python 3.12.
+- `vidtolevel doctor` on Windows RTX 4070 Super resolves local `.tools` FFmpeg 8.1.1, COLMAP 4.1 dev with CUDA, Blender 5.0, and OpenMVS v2.4.0 binaries.
+- COLMAP CUDA smoke on RTX 4070 Super: `feature_extractor` logs `Creating SIFT GPU feature extractor`; `sequential_matcher` logs GPU device 0 and `Creating SIFT GPU feature matcher`.
+- Synthetic sparse pipeline smoke on Windows: `vidtolevel process .vidtolevel_smoke/synthetic_phone_like.mp4 --skip-mvs --skip-optimize` registered 24/24 images.
+- Viewer on Windows: `vidtolevel viewer .vidtolevel_smoke/runs/synthetic_gpu_sparse --host 127.0.0.1 --port 8766` loads 24 cameras and 17,817 points; browser screenshot renders the point cloud and camera path.
+- Windows local tool discovery handles `.exe`, versioned `.tools/<tool>/<version>/bin`, and Program Files Blender discovery.
+- SQLite job DB helpers close connections explicitly so temp database tests pass on Windows.
+- `vidtolevel process` now resolves FFmpeg through `require_tool("ffmpeg")` instead of assuming `ffmpeg` is on PATH.
 - `vidtolevel doctor`: FFmpeg, COLMAP, Blender, and required OpenMVS binaries resolve successfully.
 - OpenMVS v2.4.0 macOS arm64 prebuilt launches `InterfaceCOLMAP --help`.
 - Viewer WebSocket job state connects in browser and reports `Live: no jobs` when no job database exists.
@@ -47,7 +54,7 @@ Updated: 2026-06-11
 ## Current Blockers
 
 - A real short phone video is needed for end-to-end video-to-sparse/MVS smoke testing.
-- CUDA validation cannot be completed on this Mac because Homebrew COLMAP reports `without CUDA`.
+- Windows OpenMVS v2.4.0 CPU and CUDA release binaries are discoverable but exit 1 with empty logs on `-h` and on valid `InterfaceCOLMAP` input; full MVS/mesh smoke is blocked until this runtime issue is resolved.
 
 ## Next Work Queue
 

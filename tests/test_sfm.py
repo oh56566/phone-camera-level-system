@@ -45,6 +45,45 @@ class SfmCommandTests(unittest.TestCase):
             self.assertIn("10", mapper_command)
             self.assertEqual(stats.snapshot_path, str(root / "snapshots" / "sfm"))
 
+    def test_colmap_four_gpu_option_names_are_used_when_supported(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            images = root / "images"
+            images.mkdir()
+            (images / "0001.jpg").write_bytes(b"jpg")
+            sparse = root / "sparse"
+            commands: list[list[str]] = []
+
+            def fake_run(command, **kwargs):
+                command_list = list(command)
+                commands.append(command_list)
+                if command_list == ["colmap", "feature_extractor", "-h"]:
+                    return CommandResult(command=command_list, returncode=0, output="--FeatureExtraction.use_gpu")
+                if command_list == ["colmap", "sequential_matcher", "-h"]:
+                    return CommandResult(command=command_list, returncode=0, output="--FeatureMatching.use_gpu")
+                if command_list[1] == "mapper":
+                    (sparse / "0").mkdir(parents=True)
+                output = "Registered images: 1" if command_list[1] == "model_analyzer" else ""
+                return CommandResult(command=command_list, returncode=0, output=output)
+
+            with patch("vidtolevel.core.sfm.run_command", side_effect=fake_run):
+                run_new_reconstruction(
+                    colmap="colmap",
+                    images_dir=images,
+                    database_path=root / "database.db",
+                    sparse_dir=sparse,
+                    log_dir=root / "logs",
+                )
+
+            feature_command = next(
+                command for command in commands if command[1] == "feature_extractor" and "-h" not in command
+            )
+            matcher_command = next(
+                command for command in commands if command[1] == "sequential_matcher" and "-h" not in command
+            )
+            self.assertIn("--FeatureExtraction.use_gpu", feature_command)
+            self.assertIn("--FeatureMatching.use_gpu", matcher_command)
+
 
 if __name__ == "__main__":
     unittest.main()

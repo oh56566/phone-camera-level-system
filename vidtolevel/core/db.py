@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -44,6 +45,16 @@ def connect(db_path: Path) -> sqlite3.Connection:
     return conn
 
 
+@contextmanager
+def managed_connection(db_path: Path):
+    conn = connect(db_path)
+    try:
+        yield conn
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def create_job(
     db_path: Path,
     *,
@@ -53,7 +64,7 @@ def create_job(
     work_dir: Path,
 ) -> None:
     now = utc_now()
-    with connect(db_path) as conn:
+    with managed_connection(db_path) as conn:
         conn.execute(
             """
             INSERT OR REPLACE INTO jobs
@@ -83,7 +94,7 @@ def update_job(
     stats: dict[str, Any] | None = None,
 ) -> None:
     now = utc_now()
-    with connect(db_path) as conn:
+    with managed_connection(db_path) as conn:
         if stats is None:
             conn.execute(
                 """
@@ -113,7 +124,7 @@ def add_job_event(
     message: str | None = None,
     payload: dict[str, Any] | None = None,
 ) -> None:
-    with connect(db_path) as conn:
+    with managed_connection(db_path) as conn:
         conn.execute(
             """
             INSERT INTO job_events
@@ -132,7 +143,7 @@ def add_job_event(
 
 
 def list_jobs(db_path: Path, limit: int = 20) -> list[dict[str, Any]]:
-    with connect(db_path) as conn:
+    with managed_connection(db_path) as conn:
         rows = conn.execute(
             """
             SELECT id, project, video_path, work_dir, status, message, stats_json, created_at, updated_at
@@ -174,7 +185,7 @@ def list_job_events(
             """
         params = (job_id, limit)
 
-    with connect(db_path) as conn:
+    with managed_connection(db_path) as conn:
         rows = conn.execute(query, params).fetchall()
 
     events: list[dict[str, Any]] = []
@@ -186,7 +197,7 @@ def list_job_events(
 
 
 def get_job(db_path: Path, job_id: str) -> dict[str, Any] | None:
-    with connect(db_path) as conn:
+    with managed_connection(db_path) as conn:
         row = conn.execute(
             """
             SELECT id, project, video_path, work_dir, status, message, stats_json, created_at, updated_at

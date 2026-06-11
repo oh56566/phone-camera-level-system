@@ -4,7 +4,9 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 *.egg-info/
+*.log
 .vidtolevel_viewer/
+.vidtolevel_smoke/
 .tools/
 .venv/
 venv/

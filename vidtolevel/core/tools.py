@@ -73,21 +73,68 @@ def _which_in_configured_dirs(name: str) -> str | None:
 
 
 def _which_in_local_tool_dirs(name: str) -> str | None:
-    if name not in OPENMVS_TOOL_NAMES:
-        return None
-
     package_root = Path(__file__).resolve().parents[2]
     roots = [Path.cwd(), package_root]
-    directories = _dedupe_paths(root / ".tools" / "openmvs" / "bin" for root in roots)
-    return _first_executable(name, directories)
+    directories = _dedupe_paths(
+        directory
+        for root in roots
+        for directory in _local_tool_dirs(root, name)
+    )
+    local = _first_executable(name, directories)
+    if local:
+        return local
+
+    return _first_executable(name, _common_windows_tool_dirs(name))
+
+
+def _local_tool_dirs(root: Path, name: str) -> list[Path]:
+    tool_root = root / ".tools" / _local_tool_group(name)
+    directories = [tool_root / "bin"]
+    if tool_root.exists():
+        directories.extend(sorted(path for path in tool_root.glob("*/bin") if path.is_dir()))
+    return directories
+
+
+def _local_tool_group(name: str) -> str:
+    return "openmvs" if name in OPENMVS_TOOL_NAMES else name.lower()
+
+
+def _common_windows_tool_dirs(name: str) -> list[Path]:
+    if os.name != "nt":
+        return []
+
+    directories: list[Path] = []
+    if name == "blender":
+        for env_name in ("ProgramFiles", "ProgramFiles(x86)"):
+            program_files = os.environ.get(env_name)
+            if not program_files:
+                continue
+            blender_root = Path(program_files) / "Blender Foundation"
+            if blender_root.exists():
+                directories.extend(sorted(path for path in blender_root.glob("Blender *") if path.is_dir()))
+    return directories
 
 
 def _first_executable(name: str, directories: Sequence[Path]) -> str | None:
+    names = _candidate_names(name)
     for directory in directories:
-        candidate = directory / name
-        if candidate.is_file() and os.access(candidate, os.X_OK):
-            return str(candidate)
+        for candidate_name in names:
+            candidate = directory / candidate_name
+            if candidate.is_file() and os.access(candidate, os.X_OK):
+                return str(candidate)
     return None
+
+
+def _candidate_names(name: str) -> list[str]:
+    if Path(name).suffix or os.name != "nt":
+        return [name]
+
+    extensions = [
+        extension
+        for extension in os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD").split(os.pathsep)
+        if extension
+    ]
+    return [name, *(f"{name}{extension}" for extension in extensions)]
 
 
 def _dedupe_paths(paths: Sequence[Path]) -> list[Path]:

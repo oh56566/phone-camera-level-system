@@ -37,6 +37,21 @@ def _parse_registered_images(text: str) -> int | None:
     return None
 
 
+def _colmap_gpu_option(
+    colmap: str,
+    command: str,
+    *,
+    current_group: str,
+    legacy_group: str,
+    use_gpu: bool,
+) -> list[str]:
+    help_result = run_command([colmap, command, "-h"], check=False)
+    current_option = f"--{current_group}.use_gpu"
+    legacy_option = f"--{legacy_group}.use_gpu"
+    option = current_option if current_option in help_result.output else legacy_option
+    return [option, "1" if use_gpu else "0"]
+
+
 def run_new_reconstruction(
     *,
     colmap: str,
@@ -66,8 +81,13 @@ def run_new_reconstruction(
         camera_model,
         "--ImageReader.single_camera",
         "1" if single_camera else "0",
-        "--SiftExtraction.use_gpu",
-        "1" if use_gpu else "0",
+        *_colmap_gpu_option(
+            colmap,
+            "feature_extractor",
+            current_group="FeatureExtraction",
+            legacy_group="SiftExtraction",
+            use_gpu=use_gpu,
+        ),
     ]
     if image_list_path:
         feature_command.extend(["--image_list_path", str(image_list_path)])
@@ -80,8 +100,13 @@ def run_new_reconstruction(
             str(database_path),
             "--SequentialMatching.loop_detection",
             "1",
-            "--SiftMatching.use_gpu",
-            "1" if use_gpu else "0",
+            *_colmap_gpu_option(
+                colmap,
+                "sequential_matcher",
+                current_group="FeatureMatching",
+                legacy_group="SiftMatching",
+                use_gpu=use_gpu,
+            ),
         ],
         log_path=log_dir / "colmap_sequential_matcher.log",
     )
@@ -164,8 +189,13 @@ def register_incremental_session(
         "OPENCV",
         "--ImageReader.single_camera",
         "1",
-        "--SiftExtraction.use_gpu",
-        "1" if use_gpu else "0",
+        *_colmap_gpu_option(
+            colmap,
+            "feature_extractor",
+            current_group="FeatureExtraction",
+            legacy_group="SiftExtraction",
+            use_gpu=use_gpu,
+        ),
     ]
     if image_list_path:
         feature_command.extend(["--image_list_path", str(image_list_path)])
@@ -180,8 +210,13 @@ def register_incremental_session(
                 str(database_path),
                 "--VocabTreeMatching.vocab_tree_path",
                 str(vocab_tree_path),
-                "--SiftMatching.use_gpu",
-                "1" if use_gpu else "0",
+                *_colmap_gpu_option(
+                    colmap,
+                    "vocab_tree_matcher",
+                    current_group="FeatureMatching",
+                    legacy_group="SiftMatching",
+                    use_gpu=use_gpu,
+                ),
             ],
             log_path=log_dir / "colmap_vocab_tree_matcher.log",
         )
@@ -194,8 +229,13 @@ def register_incremental_session(
                 str(database_path),
                 "--SequentialMatching.loop_detection",
                 "1",
-                "--SiftMatching.use_gpu",
-                "1" if use_gpu else "0",
+                *_colmap_gpu_option(
+                    colmap,
+                    "sequential_matcher",
+                    current_group="FeatureMatching",
+                    legacy_group="SiftMatching",
+                    use_gpu=use_gpu,
+                ),
             ],
             log_path=log_dir / "colmap_incremental_sequential_matcher.log",
         )

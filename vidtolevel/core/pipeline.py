@@ -164,6 +164,7 @@ def process_video(options: ProcessOptions) -> dict[str, Any]:
                 layout.input_video,
                 layout.extracted_frames,
                 fps=options.fps,
+                ffmpeg=require_tool("ffmpeg"),
                 log_path=layout.logs / "ffmpeg_extract_frames.log",
             )
             frame_stats = filter_frames(
@@ -173,19 +174,15 @@ def process_video(options: ProcessOptions) -> dict[str, Any]:
                 blur_percentile=options.blur_percentile,
                 duplicate_threshold=options.duplicate_threshold,
             )
-            checkpoint.finish(
-                "frames",
-                extracted_count=extracted_count,
-                **frame_stats.to_dict(),
-            )
+            frame_payload = frame_stats.to_dict()
+            checkpoint.finish("frames", **frame_payload)
             _emit_event(
                 options.database_path,
                 job_id,
                 "frames",
                 "done",
                 "frames filtered",
-                extracted_count=extracted_count,
-                **frame_stats.to_dict(),
+                **frame_payload,
             )
 
         if not checkpoint.done("sfm"):

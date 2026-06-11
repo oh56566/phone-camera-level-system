@@ -9,9 +9,10 @@ the project can resume without relying on conversation context.
 
 1. Phase 0 real toolchain smoke test
    - Done locally: FFmpeg, COLMAP, Blender, and OpenMVS are discoverable by `vidtolevel doctor`.
-   - Run a short phone-video pipeline with `--skip-optimize` first once a sample `.mp4` is available.
-   - Confirm sparse model opens in `vidtolevel viewer`.
-   - Repeat COLMAP GPU verification on the RTX 4070 Super machine; this Mac's Homebrew COLMAP is `without CUDA`.
+   - Done on Windows RTX 4070 Super: COLMAP 4.1 dev CUDA build runs GPU feature extraction and matching.
+   - Done on Windows RTX 4070 Super: synthetic video sparse smoke registers 24/24 frames and opens in `vidtolevel viewer`.
+   - Run a short real phone-video pipeline with `--skip-optimize` first once a sample `.mp4` is available.
+   - Resolve Windows OpenMVS v2.4.0 binary launch failure before full MVS smoke; both CPU and CUDA release binaries currently exit 1 with empty logs.
 
 2. Viewer V2 live monitoring
    - Done: add WebSocket endpoint for job state backed by SQLite polling.
@@ -55,10 +56,14 @@ the project can resume without relying on conversation context.
 ## Current Known Blockers
 
 - Full video-to-FBX validation now needs a short real sample phone video.
-- COLMAP CUDA validation is blocked on this Mac because the installed Homebrew build reports `without CUDA`; run that check on the RTX 4070 Super machine.
+- Windows OpenMVS v2.4.0 release binaries are discoverable but currently exit 1 with empty logs before producing `scene.mvs`.
+- Full OpenMVS/mesh validation is blocked until the Windows OpenMVS runtime issue is resolved.
 
 ## Completed Recently
 
+- Windows RTX smoke: local `.tools` FFmpeg, COLMAP CUDA, and OpenMVS binaries are discoverable by `vidtolevel doctor`; Blender 5.0 is discovered from Program Files.
+- COLMAP 4.x compatibility: GPU flags now adapt to `FeatureExtraction.use_gpu` / `FeatureMatching.use_gpu` while preserving old `Sift*` fallback.
+- Synthetic sparse pipeline smoke: `vidtolevel process --skip-mvs --skip-optimize` registered 24/24 frames and the viewer rendered 24 cameras / 17,817 points.
 - Viewer V3 mesh preview controls: first available `.obj` mesh can be viewed as shaded, wire, or both with adjustable opacity.
 - Viewer V3 GLB preview: `.glb`/`.gltf` meshes are preferred over OBJ, served with matching media types and companion asset paths, and rendered with GLTFLoader.
 - Viewer V3 simple mesh preview: first available `.obj` mesh is served and rendered as a translucent viewport layer.
