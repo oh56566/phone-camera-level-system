@@ -19,7 +19,7 @@ Updated: 2026-06-11
 | Viewer Phase | Status | Notes |
 |---|---:|---|
 | V0: Static Viewer | Complete | COLMAP binary parser, FastAPI static/API serving, binary point stream, Three.js sparse point view, camera frustums, path, timeline, and local vendor assets are working. |
-| V1: Diagnostics | In progress | Frustum click selection, camera path, timeline, metrics, coverage panel, and point render modes are present. Thumbnails and failure-gap highlighting are the next active work. |
+| V1: Diagnostics | In progress | Frustum click selection, available frame thumbnail display, camera path, timeline, metrics, coverage panel, and point render modes are present. Failure-gap highlighting is the next active work. |
 | V2: Real-time Monitoring | Not started | WebSocket, COLMAP snapshot watching, and live diff updates remain. |
 | V3: Dense Data + Mesh Preview | Not started | Dense point downsampling, GLB conversion, mesh preview, wireframe/texture toggles remain. |
 | V4: Coverage + Session Compare | Partial | Coverage grid API exists. Session coloring/diff reports and mobile capture-mode UI remain. |
@@ -39,8 +39,8 @@ Updated: 2026-06-11
 
 ## Next Work Queue
 
-1. Viewer V1 thumbnails: generate or serve camera frame thumbnails and show them in selection.
-2. Viewer V1 path gap highlighting: detect large camera jumps or weak observed-point segments.
+1. Viewer V1 path gap highlighting: detect large camera jumps or weak observed-point segments.
+2. Viewer V1 thumbnail generation: create cached 320px thumbnails instead of serving originals.
 3. Phase 0 external tool install and first real phone-video smoke test.
 4. Phase 4 collision upgrade: separate ground proxy from building proxies.
 5. Viewer V2 live monitoring: WebSocket job state and COLMAP snapshot updates.

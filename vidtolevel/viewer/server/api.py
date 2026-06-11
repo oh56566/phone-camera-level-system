@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, HTMLResponse, Response
@@ -79,6 +80,12 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
             camera = model.cameras.get(image.camera_id)
             if camera is None:
                 continue
+            image_path = project.images_dir / image.name if project.images_dir else None
+            thumbnail_url = (
+                f"/api/{project.id}/thumb/{quote(image.name)}"
+                if image_path is not None and image_path.exists()
+                else ""
+            )
             fov_x, fov_y = camera.fov
             payload.append(
                 {
@@ -95,6 +102,7 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
                         float(value) for value in image.rotation_camera_to_world.reshape(-1)
                     ],
                     "registeredPointCount": image.registered_point_count,
+                    "thumbnailUrl": thumbnail_url,
                 }
             )
         return {"project": project.id, "cameras": payload}

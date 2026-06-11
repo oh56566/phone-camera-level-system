@@ -62,6 +62,9 @@ class ViewerParserTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             run_root = Path(tmp) / "run"
             _write_sparse_model(run_root / "colmap" / "sparse" / "0")
+            images_dir = run_root / "colmap" / "images"
+            images_dir.mkdir(parents=True)
+            (images_dir / "0001.jpg").write_bytes(b"fake-jpeg")
             projects = discover_projects([run_root])
 
             self.assertEqual(list(projects), ["run"])
@@ -76,6 +79,7 @@ class ViewerParserTests(unittest.TestCase):
 
             cameras_response = cameras_endpoint("run")
             self.assertEqual(len(cameras_response["cameras"]), 2)
+            self.assertEqual(cameras_response["cameras"][0]["thumbnailUrl"], "/api/run/thumb/0001.jpg")
 
             points_response = points_endpoint("run")
             self.assertEqual(points_response.headers["x-vidtolevel-point-count"], "2")

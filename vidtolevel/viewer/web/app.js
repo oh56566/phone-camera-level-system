@@ -358,7 +358,11 @@ function selectCamera(event) {
   marker.material.color.copy(selectedMarkerMaterial.color);
   state.selectedMarker = marker;
   const item = marker.userData.camera;
+  const thumbnail = item.thumbnailUrl
+    ? `<img class="selection-thumb" src="${escapeAttribute(item.thumbnailUrl)}" alt="" />`
+    : "";
   dom.selectionBody.innerHTML = `
+    ${thumbnail}
     <strong>${escapeHtml(item.name)}</strong>
     Image ID ${item.id}<br />
     Camera ${item.cameraId} / ${escapeHtml(item.model)}<br />
@@ -488,4 +492,8 @@ function escapeHtml(value) {
     };
     return map[char];
   });
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value);
 }
