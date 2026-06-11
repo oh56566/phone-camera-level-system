@@ -38,6 +38,7 @@ class ViewerParserTests(unittest.TestCase):
         )
         self.assertIn('"/assets/vendor/three.module.js"', index)
         self.assertIn('"/assets/vendor/examples/jsm/"', index)
+        self.assertIn('id="status-live"', index)
         self.assertNotIn("unpkg.com", index)
         self.assertTrue(
             (REPO_ROOT / "vidtolevel" / "viewer" / "web" / "vendor" / "three.module.js").exists()
@@ -138,6 +139,32 @@ class ViewerParserTests(unittest.TestCase):
             cached = cv2.imread(str(response.path))
             self.assertIsNotNone(cached)
             self.assertLessEqual(max(cached.shape[:2]), 320)
+
+    def test_live_jobs_payload_reads_existing_database_only(self) -> None:
+        from vidtolevel.core import db
+        from vidtolevel.viewer.server.live import build_jobs_payload
+
+        with tempfile.TemporaryDirectory() as tmp:
+            database = Path(tmp) / "jobs.sqlite3"
+            missing = Path(tmp) / "missing.sqlite3"
+
+            empty_payload = build_jobs_payload(missing)
+            self.assertEqual(empty_payload["jobs"], [])
+            self.assertFalse(missing.exists())
+
+            db.create_job(
+                database,
+                job_id="job-1",
+                project="demo",
+                video_path=Path("sample.mp4"),
+                work_dir=Path("runs/job-1"),
+            )
+            db.update_job(database, job_id="job-1", status="running", message="run colmap")
+
+            payload = build_jobs_payload(database)
+            self.assertEqual(payload["type"], "jobs")
+            self.assertEqual(payload["jobs"][0]["id"], "job-1")
+            self.assertEqual(payload["jobs"][0]["message"], "run colmap")
 
 
 def _write_sparse_model(path: Path) -> Path:

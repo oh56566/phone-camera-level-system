@@ -20,7 +20,7 @@ Updated: 2026-06-11
 |---|---:|---|
 | V0: Static Viewer | Complete | COLMAP binary parser, FastAPI static/API serving, binary point stream, Three.js sparse point view, camera frustums, path, timeline, and local vendor assets are working. |
 | V1: Diagnostics | In progress | Frustum click selection, cached frame thumbnails, camera path, timeline, metrics, coverage panel, point render modes, and path issue highlighting are present. Failure explanation summaries are the remaining V1 polish. |
-| V2: Real-time Monitoring | Not started | WebSocket, COLMAP snapshot watching, and live diff updates remain. |
+| V2: Real-time Monitoring | In progress | `/ws/jobs` streams SQLite job status into the viewer status bar. COLMAP snapshot watching and live camera/point diffs remain. |
 | V3: Dense Data + Mesh Preview | Not started | Dense point downsampling, GLB conversion, mesh preview, wireframe/texture toggles remain. |
 | V4: Coverage + Session Compare | Partial | Coverage grid API exists. Session coloring/diff reports and mobile capture-mode UI remain. |
 | V5: Finish | Partial | `vidtolevel viewer` command launches server and browser. Measurement tools, screenshots, view presets, and settings persistence remain. |
@@ -30,6 +30,7 @@ Updated: 2026-06-11
 - `pytest`: 13 tests passing.
 - `vidtolevel doctor`: FFmpeg, COLMAP, Blender, and required OpenMVS binaries resolve successfully.
 - OpenMVS v2.4.0 macOS arm64 prebuilt launches `InterfaceCOLMAP --help`.
+- Viewer WebSocket job state connects in browser and reports `Live: no jobs` when no job database exists.
 - `vidtolevel viewer` renders a fixture sparse model in browser.
 - Viewer API returns projects, status, cameras, points, and coverage.
 - Viewer uses local Three.js/OrbitControls assets instead of an external CDN.
@@ -44,6 +45,6 @@ Updated: 2026-06-11
 
 1. Phase 0 first real phone-video smoke test.
 2. Phase 4 collision upgrade: separate ground proxy from building proxies.
-3. Viewer V2 live monitoring: WebSocket job state and COLMAP snapshot updates.
+3. Viewer V2 live monitoring: COLMAP snapshot updates and camera/point diffs.
 4. Viewer V3 mesh preview: convert textured mesh outputs to GLB for inspection.
 5. Viewer V1 failure explanation summaries with counts per issue reason.

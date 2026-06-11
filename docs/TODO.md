@@ -14,8 +14,9 @@ the project can resume without relying on conversation context.
    - Repeat COLMAP GPU verification on the RTX 4070 Super machine; this Mac's Homebrew COLMAP is `without CUDA`.
 
 2. Viewer V2 live monitoring
-   - Add WebSocket endpoint for job state.
-   - Emit pipeline stage events from `process_video` and `add_project_session`.
+   - Done: add WebSocket endpoint for job state backed by SQLite polling.
+   - Done: viewer status bar shows live job state and reconnects automatically.
+   - Emit richer pipeline stage events from `process_video` and `add_project_session`.
    - Later, watch COLMAP snapshot folders and stream camera/point diffs.
 
 3. Phase 4 collision upgrade
@@ -37,7 +38,8 @@ the project can resume without relying on conversation context.
 
 - V1: cached thumbnail generation. Done.
 - V1: failure segment explanation panel with counts per reason.
-- V2: WebSocket job state and live camera registration.
+- V2: WebSocket job state. Done.
+- V2: COLMAP snapshot watching and live camera registration.
 - V3: dense point downsampling and mesh-to-GLB preview.
 - V4: session toggles, session colors, and coverage diff mode.
 - V5: view presets, measurement tool, screenshot export, settings persistence.
@@ -49,6 +51,7 @@ the project can resume without relying on conversation context.
 
 ## Completed Recently
 
+- Viewer V2 live job status: `/ws/jobs` streams SQLite job state to the status bar.
 - Phase 0 tool discovery: FFmpeg, COLMAP, Blender, and OpenMVS v2.4.0 are available locally.
 - Added macOS OpenMVS prebuilt installer and local `.tools/openmvs/bin` discovery.
 - Viewer V1 point color modes: RGB, reprojection error, observation count, session.

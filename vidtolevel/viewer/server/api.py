@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import asyncio
+import json
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 from urllib.parse import quote
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -21,6 +23,7 @@ from vidtolevel.viewer.server.converter import (
 )
 from vidtolevel.viewer.server.coverage import compute_topdown_coverage
 from vidtolevel.viewer.server.diagnostics import annotate_camera_path
+from vidtolevel.viewer.server.live import build_jobs_payload
 from vidtolevel.viewer.server.thumbnails import build_cached_thumbnail
 
 
@@ -162,6 +165,30 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return FileResponse(thumbnail_path, media_type="image/jpeg")
+
+    @app.websocket("/ws/jobs")
+    async def jobs_socket(
+        websocket: WebSocket,
+        database: str = "vidtolevel.sqlite3",
+        limit: int = 20,
+        interval: float = 2.0,
+    ) -> None:
+        await websocket.accept()
+        last_payload = ""
+        poll_interval = max(0.5, min(interval, 10.0))
+        try:
+            while True:
+                payload = build_jobs_payload(Path(database), limit=max(1, min(limit, 200)))
+                serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+                if serialized != last_payload:
+                    await websocket.send_text(serialized)
+                    last_payload = serialized
+                try:
+                    await asyncio.wait_for(websocket.receive_text(), timeout=poll_interval)
+                except TimeoutError:
+                    continue
+        except (WebSocketDisconnect, asyncio.CancelledError):
+            return
 
     return app
 

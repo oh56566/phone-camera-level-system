@@ -22,6 +22,7 @@ const dom = {
   playToggle: document.querySelector("#play-toggle"),
   statusProject: document.querySelector("#status-project"),
   statusStage: document.querySelector("#status-stage"),
+  statusLive: document.querySelector("#status-live"),
   statusCameras: document.querySelector("#status-cameras"),
   statusPoints: document.querySelector("#status-points"),
 };
@@ -39,6 +40,8 @@ const state = {
   pathLine: null,
   pathIssueLine: null,
   selectedMarker: null,
+  jobSocket: null,
+  jobReconnectTimer: null,
 };
 
 const scene = new THREE.Scene();
@@ -87,6 +90,7 @@ animate();
 
 async function init() {
   bindControls();
+  connectJobSocket();
   await loadProjects();
 }
 
@@ -498,6 +502,50 @@ function boundsDiagonal(bounds) {
 function setStatus(project, stage) {
   dom.statusProject.textContent = project;
   dom.statusStage.textContent = stage;
+}
+
+function connectJobSocket() {
+  if (state.jobSocket) {
+    state.jobSocket.close();
+  }
+  window.clearTimeout(state.jobReconnectTimer);
+
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const url = `${protocol}//${window.location.host}/ws/jobs`;
+  const socket = new WebSocket(url);
+  state.jobSocket = socket;
+  dom.statusLive.textContent = "Live connecting";
+
+  socket.addEventListener("open", () => {
+    dom.statusLive.textContent = "Live connected";
+  });
+  socket.addEventListener("message", (event) => {
+    try {
+      updateLiveJobs(JSON.parse(event.data));
+    } catch {
+      dom.statusLive.textContent = "Live payload error";
+    }
+  });
+  socket.addEventListener("close", () => {
+    if (state.jobSocket === socket) {
+      dom.statusLive.textContent = "Live reconnecting";
+      state.jobReconnectTimer = window.setTimeout(connectJobSocket, 2000);
+    }
+  });
+  socket.addEventListener("error", () => {
+    dom.statusLive.textContent = "Live error";
+  });
+}
+
+function updateLiveJobs(payload) {
+  const jobs = payload.jobs || [];
+  if (jobs.length === 0) {
+    dom.statusLive.textContent = "Live: no jobs";
+    return;
+  }
+  const job = jobs[0];
+  const label = [job.id, job.status, job.message].filter(Boolean).join(" · ");
+  dom.statusLive.textContent = `Live: ${label}`;
 }
 
 function resize() {
