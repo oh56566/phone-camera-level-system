@@ -23,7 +23,11 @@ from vidtolevel.viewer.server.converter import (
 )
 from vidtolevel.viewer.server.coverage import compute_topdown_coverage
 from vidtolevel.viewer.server.diagnostics import annotate_camera_path
-from vidtolevel.viewer.server.live import build_jobs_payload
+from vidtolevel.viewer.server.live import (
+    build_jobs_payload,
+    build_sparse_snapshot_payload,
+    sparse_model_signature,
+)
 from vidtolevel.viewer.server.thumbnails import build_cached_thumbnail
 
 
@@ -64,11 +68,12 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
     @app.get("/api/{project_id}/status")
     def status(project_id: str) -> dict[str, object]:
         project = _project_or_404(projects, project_id)
-        model = _load_model(str(project.sparse_model))
+        model = _load_project_model(project)
         checkpoint = project.root / "checkpoint.json"
         summary = project.root / "output" / "summary.json"
         return {
             "project": project.id,
+            "modelSignature": sparse_model_signature(project.sparse_model),
             "cameraCount": len(model.images),
             "pointCount": len(model.points3d),
             "bounds": model_bounds(model.points3d, model.images),
@@ -79,7 +84,7 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
     @app.get("/api/{project_id}/cameras")
     def cameras(project_id: str) -> dict[str, object]:
         project = _project_or_404(projects, project_id)
-        model = _load_model(str(project.sparse_model))
+        model = _load_project_model(project)
         payload: list[dict[str, object]] = []
         for image in sorted(model.images.values(), key=lambda item: item.name):
             camera = model.cameras.get(image.camera_id)
@@ -119,7 +124,7 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
         color_mode: Annotated[str, Query(pattern="^(rgb|error|track|session)$")] = "rgb",
     ) -> Response:
         project = _project_or_404(projects, project_id)
-        model = _load_model(str(project.sparse_model))
+        model = _load_project_model(project)
         if color_mode not in POINT_COLOR_MODES:
             raise HTTPException(status_code=400, detail=f"Unsupported color mode: {color_mode}")
         data, count = pack_points_binary(
@@ -144,7 +149,7 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
         cell_size: Annotated[float, Query(gt=0.01, le=10.0)] = 0.5,
     ) -> dict[str, object]:
         project = _project_or_404(projects, project_id)
-        model = _load_model(str(project.sparse_model))
+        model = _load_project_model(project)
         return compute_topdown_coverage(list(model.points3d.values()), cell_size=cell_size)
 
     @app.get("/api/{project_id}/thumb/{image_name:path}")
@@ -190,6 +195,41 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
         except (WebSocketDisconnect, asyncio.CancelledError):
             return
 
+    @app.websocket("/ws/{project_id}")
+    async def project_socket(
+        websocket: WebSocket,
+        project_id: str,
+        interval: float = 2.0,
+    ) -> None:
+        project = _project_or_404(projects, project_id)
+        await websocket.accept()
+        last_payload = ""
+        poll_interval = max(0.5, min(interval, 10.0))
+        try:
+            while True:
+                try:
+                    payload = build_sparse_snapshot_payload(
+                        project_id=project.id,
+                        sparse_model=project.sparse_model,
+                        model=_load_project_model(project),
+                    )
+                except Exception as exc:
+                    payload = {
+                        "type": "sparse_snapshot_error",
+                        "project": project.id,
+                        "message": str(exc),
+                    }
+                serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+                if serialized != last_payload:
+                    await websocket.send_text(serialized)
+                    last_payload = serialized
+                try:
+                    await asyncio.wait_for(websocket.receive_text(), timeout=poll_interval)
+                except TimeoutError:
+                    continue
+        except (WebSocketDisconnect, asyncio.CancelledError):
+            return
+
     return app
 
 
@@ -223,8 +263,12 @@ def _project_or_404(projects: dict[str, ViewerProject], project_id: str) -> View
     return project
 
 
-@lru_cache(maxsize=8)
-def _load_model(sparse_model: str) -> SparseModel:
+def _load_project_model(project: ViewerProject) -> SparseModel:
+    return _load_model(str(project.sparse_model), sparse_model_signature(project.sparse_model))
+
+
+@lru_cache(maxsize=16)
+def _load_model(sparse_model: str, signature: str) -> SparseModel:
     return read_sparse_model(Path(sparse_model))
 
 

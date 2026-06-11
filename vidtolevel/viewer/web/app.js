@@ -42,6 +42,10 @@ const state = {
   selectedMarker: null,
   jobSocket: null,
   jobReconnectTimer: null,
+  projectSocket: null,
+  projectReconnectTimer: null,
+  snapshotSignature: "",
+  snapshotRefreshing: false,
 };
 
 const scene = new THREE.Scene();
@@ -141,7 +145,8 @@ async function loadProjects() {
   await loadProject(state.projects[0]);
 }
 
-async function loadProject(project) {
+async function loadProject(project, options = {}) {
+  const reconnectSocket = options.reconnectSocket ?? true;
   state.activeProject = project;
   dom.emptyState.classList.add("hidden");
   dom.projectSelect.value = project.id;
@@ -160,6 +165,7 @@ async function loadProject(project) {
   const cameraPayload = await cameraResponse.json();
   const coverage = await coverageResponse.json();
 
+  state.snapshotSignature = status.modelSignature || state.snapshotSignature;
   state.cameras = cameraPayload.cameras;
   state.visibleCameraCount = state.cameras.length;
   dom.timelineRange.max = Math.max(state.cameras.length - 1, 0);
@@ -171,6 +177,9 @@ async function loadProject(project) {
   updateMetrics(status, coverage);
   frameScene(status.bounds);
   setStatus(project.name, "Loaded");
+  if (reconnectSocket) {
+    connectProjectSocket(project.id);
+  }
 }
 
 async function reloadPointCloud() {
@@ -535,6 +544,56 @@ function connectJobSocket() {
   socket.addEventListener("error", () => {
     dom.statusLive.textContent = "Live error";
   });
+}
+
+function connectProjectSocket(projectId) {
+  if (state.projectSocket) {
+    state.projectSocket.close();
+  }
+  window.clearTimeout(state.projectReconnectTimer);
+
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const url = `${protocol}//${window.location.host}/ws/${encodeURIComponent(projectId)}`;
+  const socket = new WebSocket(url);
+  state.projectSocket = socket;
+
+  socket.addEventListener("message", (event) => {
+    try {
+      updateSparseSnapshot(JSON.parse(event.data));
+    } catch {
+      dom.statusLive.textContent = "Sparse payload error";
+    }
+  });
+  socket.addEventListener("close", () => {
+    if (state.projectSocket === socket && state.activeProject?.id === projectId) {
+      state.projectReconnectTimer = window.setTimeout(() => connectProjectSocket(projectId), 2000);
+    }
+  });
+}
+
+async function updateSparseSnapshot(payload) {
+  if (!state.activeProject || payload.project !== state.activeProject.id) {
+    return;
+  }
+  if (payload.type === "sparse_snapshot_error") {
+    dom.statusLive.textContent = "Sparse: waiting for stable snapshot";
+    return;
+  }
+  const signature = payload.signature || "";
+  if (!signature || signature === state.snapshotSignature) {
+    return;
+  }
+  state.snapshotSignature = signature;
+  dom.statusLive.textContent = `Sparse: ${payload.cameraCount} cameras · refreshing`;
+  if (state.snapshotRefreshing) {
+    return;
+  }
+  state.snapshotRefreshing = true;
+  try {
+    await loadProject(state.activeProject, { reconnectSocket: false });
+  } finally {
+    state.snapshotRefreshing = false;
+  }
 }
 
 function updateLiveJobs(payload) {

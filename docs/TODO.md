@@ -16,8 +16,9 @@ the project can resume without relying on conversation context.
 2. Viewer V2 live monitoring
    - Done: add WebSocket endpoint for job state backed by SQLite polling.
    - Done: viewer status bar shows live job state and reconnects automatically.
+   - Done: watch sparse model signatures via project WebSocket and refresh viewer data when snapshots change.
    - Emit richer pipeline stage events from `process_video` and `add_project_session`.
-   - Later, watch COLMAP snapshot folders and stream camera/point diffs.
+   - Later, stream compact camera/point diffs instead of full viewer refresh.
 
 3. Phase 4 collision upgrade
    - Replace the temporary `ground-slab` with ground/building split.
@@ -39,7 +40,8 @@ the project can resume without relying on conversation context.
 - V1: cached thumbnail generation. Done.
 - V1: failure segment explanation panel with counts per reason.
 - V2: WebSocket job state. Done.
-- V2: COLMAP snapshot watching and live camera registration.
+- V2: Sparse snapshot watching. Done.
+- V2: Compact live camera/point diff messages.
 - V3: dense point downsampling and mesh-to-GLB preview.
 - V4: session toggles, session colors, and coverage diff mode.
 - V5: view presets, measurement tool, screenshot export, settings persistence.
@@ -52,6 +54,7 @@ the project can resume without relying on conversation context.
 ## Completed Recently
 
 - Viewer V2 live job status: `/ws/jobs` streams SQLite job state to the status bar.
+- Viewer V2 sparse snapshot status: `/ws/{project_id}` detects COLMAP sparse model changes and triggers viewer refresh.
 - Phase 0 tool discovery: FFmpeg, COLMAP, Blender, and OpenMVS v2.4.0 are available locally.
 - Added macOS OpenMVS prebuilt installer and local `.tools/openmvs/bin` discovery.
 - Viewer V1 point color modes: RGB, reprojection error, observation count, session.

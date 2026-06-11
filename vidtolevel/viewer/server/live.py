@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from vidtolevel.core import db
+from vidtolevel.viewer.server.colmap_parser import SparseModel
 
 
 def build_jobs_payload(database_path: Path, *, limit: int = 20) -> dict[str, Any]:
@@ -13,4 +14,31 @@ def build_jobs_payload(database_path: Path, *, limit: int = 20) -> dict[str, Any
         "type": "jobs",
         "database": str(resolved),
         "jobs": jobs,
+    }
+
+
+def sparse_model_signature(sparse_model: Path) -> str:
+    parts: list[str] = []
+    for name in ("cameras.bin", "images.bin", "points3D.bin", "cameras.txt", "images.txt", "points3D.txt"):
+        path = sparse_model / name
+        if not path.exists():
+            continue
+        stat = path.stat()
+        parts.append(f"{name}:{stat.st_size}:{stat.st_mtime_ns}")
+    return "|".join(parts)
+
+
+def build_sparse_snapshot_payload(
+    *,
+    project_id: str,
+    sparse_model: Path,
+    model: SparseModel,
+) -> dict[str, Any]:
+    return {
+        "type": "sparse_snapshot",
+        "project": project_id,
+        "sparseModel": str(sparse_model.resolve()),
+        "signature": sparse_model_signature(sparse_model),
+        "cameraCount": len(model.images),
+        "pointCount": len(model.points3d),
     }

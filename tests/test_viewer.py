@@ -93,9 +93,14 @@ class ViewerParserTests(unittest.TestCase):
             project_endpoint = _endpoint(app, "/api/projects")
             cameras_endpoint = _endpoint(app, "/api/{project_id}/cameras")
             points_endpoint = _endpoint(app, "/api/{project_id}/points")
+            status_endpoint = _endpoint(app, "/api/{project_id}/status")
 
             project_response = project_endpoint()
             self.assertEqual(project_response[0]["id"], "run")
+
+            status_response = status_endpoint("run")
+            self.assertIn("modelSignature", status_response)
+            self.assertEqual(status_response["cameraCount"], 2)
 
             cameras_response = cameras_endpoint("run")
             self.assertEqual(len(cameras_response["cameras"]), 2)
@@ -165,6 +170,33 @@ class ViewerParserTests(unittest.TestCase):
             self.assertEqual(payload["type"], "jobs")
             self.assertEqual(payload["jobs"][0]["id"], "job-1")
             self.assertEqual(payload["jobs"][0]["message"], "run colmap")
+
+    @unittest.skipIf(not NUMPY_AVAILABLE, "numpy is not installed")
+    def test_sparse_snapshot_signature_tracks_model_file_changes(self) -> None:
+        from vidtolevel.viewer.server.colmap_parser import read_sparse_model
+        from vidtolevel.viewer.server.live import (
+            build_sparse_snapshot_payload,
+            sparse_model_signature,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            sparse = _write_sparse_model(Path(tmp) / "run" / "colmap" / "sparse" / "0")
+            first = sparse_model_signature(sparse)
+            self.assertIn("images.bin", first)
+
+            model = read_sparse_model(sparse)
+            payload = build_sparse_snapshot_payload(
+                project_id="run",
+                sparse_model=sparse,
+                model=model,
+            )
+            self.assertEqual(payload["type"], "sparse_snapshot")
+            self.assertEqual(payload["cameraCount"], 2)
+            self.assertEqual(payload["pointCount"], 2)
+
+            (sparse / "points3D.bin").write_bytes((sparse / "points3D.bin").read_bytes() + b" ")
+            second = sparse_model_signature(sparse)
+            self.assertNotEqual(first, second)
 
 
 def _write_sparse_model(path: Path) -> Path:
