@@ -32,6 +32,7 @@ class ProcessOptions:
     target_faces: int = 500_000
     collision_mode: str = "ground-slab"
     database_path: Path = Path("vidtolevel.sqlite3")
+    mapper_snapshot_frames_freq: int = 25
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,7 @@ class RunLayout:
     sparse: Path
     openmvs: Path
     output: Path
+    snapshots: Path
     checkpoint: Path
 
 
@@ -71,6 +73,7 @@ def make_layout(runs_dir: Path, job_id: str) -> RunLayout:
         sparse=colmap_workspace / "sparse",
         openmvs=root / "openmvs",
         output=root / "output",
+        snapshots=root / "snapshots",
         checkpoint=root / "checkpoint.json",
     )
 
@@ -203,6 +206,8 @@ def process_video(options: ProcessOptions) -> dict[str, Any]:
                 sparse_dir=layout.sparse,
                 log_dir=layout.logs,
                 use_gpu=options.use_gpu,
+                mapper_snapshot_path=layout.snapshots / "sfm",
+                mapper_snapshot_frames_freq=options.mapper_snapshot_frames_freq,
             )
             checkpoint.finish("sfm", **sfm_stats.to_dict())
             _emit_event(

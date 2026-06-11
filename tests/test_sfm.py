@@ -1,0 +1,50 @@
+from __future__ import annotations
+
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from vidtolevel.core.sfm import run_new_reconstruction
+from vidtolevel.core.tools import CommandResult
+
+
+class SfmCommandTests(unittest.TestCase):
+    def test_mapper_snapshot_options_are_added_when_enabled(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            images = root / "images"
+            images.mkdir()
+            (images / "0001.jpg").write_bytes(b"jpg")
+            (images / "0002.jpg").write_bytes(b"jpg")
+            sparse = root / "sparse"
+            commands: list[list[str]] = []
+
+            def fake_run(command, **kwargs):
+                command_list = list(command)
+                commands.append(command_list)
+                if command_list[1] == "mapper":
+                    (sparse / "0").mkdir(parents=True)
+                output = "Registered images: 2" if command_list[1] == "model_analyzer" else ""
+                return CommandResult(command=command_list, returncode=0, output=output)
+
+            with patch("vidtolevel.core.sfm.run_command", side_effect=fake_run):
+                stats = run_new_reconstruction(
+                    colmap="colmap",
+                    images_dir=images,
+                    database_path=root / "database.db",
+                    sparse_dir=sparse,
+                    log_dir=root / "logs",
+                    mapper_snapshot_path=root / "snapshots" / "sfm",
+                    mapper_snapshot_frames_freq=10,
+                )
+
+            mapper_command = next(command for command in commands if command[1] == "mapper")
+            self.assertIn("--Mapper.snapshot_path", mapper_command)
+            self.assertIn("--Mapper.snapshot_frames_freq", mapper_command)
+            self.assertIn("10", mapper_command)
+            self.assertEqual(stats.snapshot_path, str(root / "snapshots" / "sfm"))
+
+
+if __name__ == "__main__":
+    unittest.main()

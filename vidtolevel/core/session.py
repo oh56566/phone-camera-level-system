@@ -32,6 +32,7 @@ class SessionOptions:
     target_faces: int = 500_000
     collision_mode: str = "ground-slab"
     vocab_tree_path: Path | None = None
+    mapper_snapshot_frames_freq: int = 25
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,7 @@ class SessionLayout:
     image_list: Path
     mvs_output: Path
     output: Path
+    snapshots: Path
     checkpoint: Path
     report: Path
 
@@ -61,6 +63,7 @@ def make_session_layout(project_root: Path, session_id: str) -> SessionLayout:
         image_list=root / "image_list.txt",
         mvs_output=project_root / "meshes" / session_id / "openmvs",
         output=project_root / "meshes" / session_id / "output",
+        snapshots=root / "snapshots",
         checkpoint=root / "checkpoint.json",
         report=project_root / "reports" / f"{session_id}_quality.md",
     )
@@ -240,6 +243,8 @@ def add_project_session(options: SessionOptions) -> dict[str, Any]:
                     log_dir=layout.logs,
                     use_gpu=options.use_gpu,
                     image_list_path=layout.image_list,
+                    mapper_snapshot_path=layout.snapshots / "sfm",
+                    mapper_snapshot_frames_freq=options.mapper_snapshot_frames_freq,
                 )
                 sparse_model = Path(sfm_stats.sparse_model) if sfm_stats.sparse_model else None
                 if sparse_model:

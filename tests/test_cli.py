@@ -32,6 +32,11 @@ class CliParserTests(unittest.TestCase):
         args = parser.parse_args(["process", "sample.mp4"])
         self.assertEqual(args.collision_mode, "ground-slab")
 
+    def test_process_accepts_mapper_snapshot_frequency(self) -> None:
+        parser = build_parser()
+        args = parser.parse_args(["process", "sample.mp4", "--mapper-snapshot-frames-freq", "10"])
+        self.assertEqual(args.mapper_snapshot_frames_freq, 10)
+
 
 if __name__ == "__main__":
     unittest.main()

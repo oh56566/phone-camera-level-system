@@ -14,6 +14,7 @@ class SfmStats:
     registered_images: int | None
     registered_ratio: float | None
     sparse_model: str | None
+    snapshot_path: str | None = None
 
     def to_dict(self) -> dict[str, float | int | str | None]:
         return asdict(self)
@@ -47,6 +48,8 @@ def run_new_reconstruction(
     single_camera: bool = True,
     use_gpu: bool = True,
     image_list_path: Path | None = None,
+    mapper_snapshot_path: Path | None = None,
+    mapper_snapshot_frames_freq: int = 0,
 ) -> SfmStats:
     database_path.parent.mkdir(parents=True, exist_ok=True)
     sparse_dir.mkdir(parents=True, exist_ok=True)
@@ -82,19 +85,29 @@ def run_new_reconstruction(
         ],
         log_path=log_dir / "colmap_sequential_matcher.log",
     )
-    run_command(
-        [
-            colmap,
-            "mapper",
-            "--database_path",
-            str(database_path),
-            "--image_path",
-            str(images_dir),
-            "--output_path",
-            str(sparse_dir),
-        ],
-        log_path=log_dir / "colmap_mapper.log",
-    )
+    mapper_command = [
+        colmap,
+        "mapper",
+        "--database_path",
+        str(database_path),
+        "--image_path",
+        str(images_dir),
+        "--output_path",
+        str(sparse_dir),
+    ]
+    resolved_snapshot_path: Path | None = None
+    if mapper_snapshot_path is not None and mapper_snapshot_frames_freq > 0:
+        mapper_snapshot_path.mkdir(parents=True, exist_ok=True)
+        resolved_snapshot_path = mapper_snapshot_path
+        mapper_command.extend(
+            [
+                "--Mapper.snapshot_path",
+                str(mapper_snapshot_path),
+                "--Mapper.snapshot_frames_freq",
+                str(mapper_snapshot_frames_freq),
+            ]
+        )
+    run_command(mapper_command, log_path=log_dir / "colmap_mapper.log")
 
     sparse_model = _first_sparse_model(sparse_dir)
     registered_images: int | None = None
@@ -117,6 +130,7 @@ def run_new_reconstruction(
         registered_images=registered_images,
         registered_ratio=ratio,
         sparse_model=str(sparse_model) if sparse_model else None,
+        snapshot_path=str(resolved_snapshot_path) if resolved_snapshot_path else None,
     )
 
 

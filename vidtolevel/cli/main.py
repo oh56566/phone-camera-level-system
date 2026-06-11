@@ -51,6 +51,7 @@ def cmd_process(args: argparse.Namespace) -> int:
             target_faces=args.target_faces,
             collision_mode=args.collision_mode,
             database_path=Path(args.database),
+            mapper_snapshot_frames_freq=args.mapper_snapshot_frames_freq,
         )
     )
     print(json.dumps(result, indent=2, ensure_ascii=False))
@@ -85,6 +86,7 @@ def cmd_add_session(args: argparse.Namespace) -> int:
             target_faces=args.target_faces,
             collision_mode=args.collision_mode,
             vocab_tree_path=Path(args.vocab_tree) if args.vocab_tree else None,
+            mapper_snapshot_frames_freq=args.mapper_snapshot_frames_freq,
         )
     )
     print(json.dumps(result, indent=2, ensure_ascii=False))
@@ -158,6 +160,12 @@ def build_parser() -> argparse.ArgumentParser:
     process.add_argument("--skip-optimize", action="store_true")
     process.add_argument("--target-faces", type=int, default=500_000)
     process.add_argument("--collision-mode", choices=["ground-slab", "bounds", "none"], default="ground-slab")
+    process.add_argument(
+        "--mapper-snapshot-frames-freq",
+        type=int,
+        default=25,
+        help="Write COLMAP mapper snapshots every N registered frames. Use 0 to disable.",
+    )
     process.set_defaults(func=cmd_process)
 
     status = subparsers.add_parser("status", help="List recent jobs.")
@@ -182,6 +190,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_session.add_argument("--target-faces", type=int, default=500_000)
     add_session.add_argument("--collision-mode", choices=["ground-slab", "bounds", "none"], default="ground-slab")
     add_session.add_argument("--vocab-tree")
+    add_session.add_argument(
+        "--mapper-snapshot-frames-freq",
+        type=int,
+        default=25,
+        help="Write COLMAP mapper snapshots every N registered frames for new project models. Use 0 to disable.",
+    )
     add_session.set_defaults(func=cmd_add_session)
 
     coverage = subparsers.add_parser("coverage", help="Generate project coverage report.")
