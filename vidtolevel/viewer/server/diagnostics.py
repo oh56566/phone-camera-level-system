@@ -40,10 +40,30 @@ def annotate_camera_path(cameras: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return cameras
 
 
+def summarize_camera_path(cameras: list[dict[str, Any]]) -> dict[str, Any]:
+    reason_counts: dict[str, int] = {}
+    issue_count = 0
+    max_distance = 0.0
+    for camera in cameras:
+        distance = float(camera.get("pathDistanceFromPrevious") or 0.0)
+        max_distance = max(max_distance, distance)
+        reasons = list(camera.get("pathIssueReasons") or [])
+        if reasons:
+            issue_count += 1
+        for reason in reasons:
+            reason_counts[reason] = reason_counts.get(reason, 0) + 1
+
+    return {
+        "cameraCount": len(cameras),
+        "issueCount": issue_count,
+        "reasonCounts": reason_counts,
+        "maxDistanceFromPrevious": max_distance,
+    }
+
+
 def _distance(a: list[float], b: list[float]) -> float:
     return math.sqrt(
         (float(a[0]) - float(b[0])) ** 2
         + (float(a[1]) - float(b[1])) ** 2
         + (float(a[2]) - float(b[2])) ** 2
     )
-

@@ -17,6 +17,7 @@ const dom = {
   metricPoints: document.querySelector("#metric-points"),
   metricVisibleCameras: document.querySelector("#metric-visible-cameras"),
   metricCoverage: document.querySelector("#metric-coverage"),
+  diagnosticBody: document.querySelector("#diagnostic-body"),
   coverageCanvas: document.querySelector("#coverage-canvas"),
   timelineRange: document.querySelector("#timeline-range"),
   playToggle: document.querySelector("#play-toggle"),
@@ -438,6 +439,29 @@ function updateMetrics(status, coverage) {
   dom.metricCoverage.textContent = coverage.cells.length.toLocaleString();
   dom.statusProject.textContent = state.activeProject?.name || "Project";
   dom.statusPoints.textContent = `${status.pointCount.toLocaleString()} points`;
+  renderDiagnostics(status.diagnostics || {});
+}
+
+function renderDiagnostics(summary) {
+  const cameraCount = Number(summary.cameraCount || 0);
+  if (cameraCount === 0) {
+    dom.diagnosticBody.textContent = "No cameras";
+    return;
+  }
+
+  const issueCount = Number(summary.issueCount || 0);
+  const reasons = summary.reasonCounts || {};
+  const largeGapCount = Number(reasons.large_gap || 0);
+  const weakObservationCount = Number(reasons.weak_observations || 0);
+  const maxDistance = Number(summary.maxDistanceFromPrevious || 0);
+  const headline = issueCount === 0 ? "Path OK" : `${issueCount.toLocaleString()} path issues`;
+
+  dom.diagnosticBody.innerHTML = `
+    <strong>${escapeHtml(headline)}</strong>
+    <div class="diagnostic-row"><span>Large gaps</span><b>${largeGapCount.toLocaleString()}</b></div>
+    <div class="diagnostic-row"><span>Weak observations</span><b>${weakObservationCount.toLocaleString()}</b></div>
+    <div class="diagnostic-row"><span>Max gap</span><b>${maxDistance.toFixed(2)}</b></div>
+  `;
 }
 
 function drawCoverage(coverage) {

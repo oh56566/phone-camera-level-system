@@ -38,7 +38,7 @@ the project can resume without relying on conversation context.
 ## Viewer Backlog
 
 - V1: cached thumbnail generation. Done.
-- V1: failure segment explanation panel with counts per reason.
+- V1: failure segment explanation panel with counts per reason. Done.
 - V2: WebSocket job state. Done.
 - V2: Pipeline stage event stream. Done.
 - V2: Sparse snapshot watching. Done.
@@ -54,6 +54,7 @@ the project can resume without relying on conversation context.
 
 ## Completed Recently
 
+- Viewer V1 diagnostics summary: side panel shows path issue counts by reason.
 - Pipeline stage events: job/input/frames/sfm/mvs/optimize events are stored in SQLite and surfaced in Viewer live status.
 - Viewer V2 live job status: `/ws/jobs` streams SQLite job state to the status bar.
 - Viewer V2 sparse snapshot status: `/ws/{project_id}` detects COLMAP sparse model changes and triggers viewer refresh.

@@ -22,7 +22,7 @@ from vidtolevel.viewer.server.converter import (
     pack_points_binary,
 )
 from vidtolevel.viewer.server.coverage import compute_topdown_coverage
-from vidtolevel.viewer.server.diagnostics import annotate_camera_path
+from vidtolevel.viewer.server.diagnostics import annotate_camera_path, summarize_camera_path
 from vidtolevel.viewer.server.live import (
     build_jobs_payload,
     build_sparse_snapshot_payload,
@@ -69,6 +69,7 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
     def status(project_id: str) -> dict[str, object]:
         project = _project_or_404(projects, project_id)
         model = _load_project_model(project)
+        camera_payload = annotate_camera_path(_camera_payload(project, model))
         checkpoint = project.root / "checkpoint.json"
         summary = project.root / "output" / "summary.json"
         return {
@@ -77,6 +78,7 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
             "cameraCount": len(model.images),
             "pointCount": len(model.points3d),
             "bounds": model_bounds(model.points3d, model.images),
+            "diagnostics": summarize_camera_path(camera_payload),
             "checkpoint": str(checkpoint) if checkpoint.exists() else "",
             "summary": str(summary) if summary.exists() else "",
         }
@@ -85,36 +87,7 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
     def cameras(project_id: str) -> dict[str, object]:
         project = _project_or_404(projects, project_id)
         model = _load_project_model(project)
-        payload: list[dict[str, object]] = []
-        for image in sorted(model.images.values(), key=lambda item: item.name):
-            camera = model.cameras.get(image.camera_id)
-            if camera is None:
-                continue
-            image_path = project.images_dir / image.name if project.images_dir else None
-            thumbnail_url = (
-                f"/api/{project.id}/thumb/{quote(image.name)}"
-                if image_path is not None and image_path.exists()
-                else ""
-            )
-            fov_x, fov_y = camera.fov
-            payload.append(
-                {
-                    "id": image.image_id,
-                    "name": image.name,
-                    "cameraId": image.camera_id,
-                    "model": camera.model_name,
-                    "width": camera.width,
-                    "height": camera.height,
-                    "fovX": fov_x,
-                    "fovY": fov_y,
-                    "position": [float(value) for value in image.center],
-                    "rotationCameraToWorld": [
-                        float(value) for value in image.rotation_camera_to_world.reshape(-1)
-                    ],
-                    "registeredPointCount": image.registered_point_count,
-                    "thumbnailUrl": thumbnail_url,
-                }
-            )
+        payload = _camera_payload(project, model)
         return {"project": project.id, "cameras": annotate_camera_path(payload)}
 
     @app.get("/api/{project_id}/points")
@@ -266,6 +239,40 @@ def _project_or_404(projects: dict[str, ViewerProject], project_id: str) -> View
     if project is None:
         raise HTTPException(status_code=404, detail=f"Unknown viewer project: {project_id}")
     return project
+
+
+def _camera_payload(project: ViewerProject, model: SparseModel) -> list[dict[str, object]]:
+    payload: list[dict[str, object]] = []
+    for image in sorted(model.images.values(), key=lambda item: item.name):
+        camera = model.cameras.get(image.camera_id)
+        if camera is None:
+            continue
+        image_path = project.images_dir / image.name if project.images_dir else None
+        thumbnail_url = (
+            f"/api/{project.id}/thumb/{quote(image.name)}"
+            if image_path is not None and image_path.exists()
+            else ""
+        )
+        fov_x, fov_y = camera.fov
+        payload.append(
+            {
+                "id": image.image_id,
+                "name": image.name,
+                "cameraId": image.camera_id,
+                "model": camera.model_name,
+                "width": camera.width,
+                "height": camera.height,
+                "fovX": fov_x,
+                "fovY": fov_y,
+                "position": [float(value) for value in image.center],
+                "rotationCameraToWorld": [
+                    float(value) for value in image.rotation_camera_to_world.reshape(-1)
+                ],
+                "registeredPointCount": image.registered_point_count,
+                "thumbnailUrl": thumbnail_url,
+            }
+        )
+    return payload
 
 
 def _load_project_model(project: ViewerProject) -> SparseModel:

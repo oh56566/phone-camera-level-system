@@ -188,6 +188,30 @@ select {
   font-weight: 700;
 }
 
+.diagnostic-body {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.diagnostic-body strong {
+  color: var(--text);
+  font-size: 16px;
+}
+
+.diagnostic-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.diagnostic-row b {
+  color: var(--text);
+  font-weight: 700;
+}
+
 .metrics-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;

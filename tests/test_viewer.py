@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 class ViewerParserTests(unittest.TestCase):
     def test_camera_path_diagnostics_flags_large_gaps_and_weak_observations(self) -> None:
-        from vidtolevel.viewer.server.diagnostics import annotate_camera_path
+        from vidtolevel.viewer.server.diagnostics import annotate_camera_path, summarize_camera_path
 
         cameras = annotate_camera_path(
             [
@@ -31,6 +31,10 @@ class ViewerParserTests(unittest.TestCase):
         self.assertIn("weak_observations", cameras[2]["pathIssueReasons"])
         self.assertTrue(cameras[3]["pathIssueAfterPrevious"])
         self.assertIn("large_gap", cameras[3]["pathIssueReasons"])
+        summary = summarize_camera_path(cameras)
+        self.assertEqual(summary["issueCount"], 2)
+        self.assertEqual(summary["reasonCounts"]["weak_observations"], 2)
+        self.assertEqual(summary["reasonCounts"]["large_gap"], 1)
 
     def test_viewer_static_assets_are_local(self) -> None:
         index = (REPO_ROOT / "vidtolevel" / "viewer" / "web" / "index.html").read_text(
@@ -39,6 +43,7 @@ class ViewerParserTests(unittest.TestCase):
         self.assertIn('"/assets/vendor/three.module.js"', index)
         self.assertIn('"/assets/vendor/examples/jsm/"', index)
         self.assertIn('id="status-live"', index)
+        self.assertIn('id="diagnostic-body"', index)
         self.assertNotIn("unpkg.com", index)
         self.assertTrue(
             (REPO_ROOT / "vidtolevel" / "viewer" / "web" / "vendor" / "three.module.js").exists()
@@ -100,7 +105,9 @@ class ViewerParserTests(unittest.TestCase):
 
             status_response = status_endpoint("run")
             self.assertIn("modelSignature", status_response)
+            self.assertIn("diagnostics", status_response)
             self.assertEqual(status_response["cameraCount"], 2)
+            self.assertEqual(status_response["diagnostics"]["issueCount"], 0)
 
             cameras_response = cameras_endpoint("run")
             self.assertEqual(len(cameras_response["cameras"]), 2)

@@ -19,7 +19,7 @@ Updated: 2026-06-11
 | Viewer Phase | Status | Notes |
 |---|---:|---|
 | V0: Static Viewer | Complete | COLMAP binary parser, FastAPI static/API serving, binary point stream, Three.js sparse point view, camera frustums, path, timeline, and local vendor assets are working. |
-| V1: Diagnostics | In progress | Frustum click selection, cached frame thumbnails, camera path, timeline, metrics, coverage panel, point render modes, and path issue highlighting are present. Failure explanation summaries are the remaining V1 polish. |
+| V1: Diagnostics | Complete | Frustum click selection, cached frame thumbnails, camera path, timeline, metrics, coverage panel, point render modes, path issue highlighting, and diagnostic reason summaries are present. |
 | V2: Real-time Monitoring | In progress | `/ws/jobs` streams SQLite job status and stage events. `/ws/{project_id}` watches sparse model signatures and refreshes viewer data when snapshots change. Compact camera/point diffs remain. |
 | V3: Dense Data + Mesh Preview | Not started | Dense point downsampling, GLB conversion, mesh preview, wireframe/texture toggles remain. |
 | V4: Coverage + Session Compare | Partial | Coverage grid API exists. Session coloring/diff reports and mobile capture-mode UI remain. |
@@ -33,6 +33,7 @@ Updated: 2026-06-11
 - Viewer WebSocket job state connects in browser and reports `Live: no jobs` when no job database exists.
 - Viewer WebSocket live status displays the latest pipeline stage event from SQLite.
 - Viewer project WebSocket connects against a fixture sparse model and keeps shutdown clean.
+- Viewer diagnostics panel displays path issue reason counts in browser.
 - `vidtolevel viewer` renders a fixture sparse model in browser.
 - Viewer API returns projects, status, cameras, points, and coverage.
 - Viewer uses local Three.js/OrbitControls assets instead of an external CDN.
