@@ -13,6 +13,24 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class ViewerParserTests(unittest.TestCase):
+    def test_camera_path_diagnostics_flags_large_gaps_and_weak_observations(self) -> None:
+        from vidtolevel.viewer.server.diagnostics import annotate_camera_path
+
+        cameras = annotate_camera_path(
+            [
+                {"position": [0.0, 0.0, 0.0], "registeredPointCount": 100},
+                {"position": [1.0, 0.0, 0.0], "registeredPointCount": 100},
+                {"position": [2.0, 0.0, 0.0], "registeredPointCount": 12},
+                {"position": [20.0, 0.0, 0.0], "registeredPointCount": 100},
+            ]
+        )
+
+        self.assertFalse(cameras[1]["pathIssueAfterPrevious"])
+        self.assertTrue(cameras[2]["pathIssueAfterPrevious"])
+        self.assertIn("weak_observations", cameras[2]["pathIssueReasons"])
+        self.assertTrue(cameras[3]["pathIssueAfterPrevious"])
+        self.assertIn("large_gap", cameras[3]["pathIssueReasons"])
+
     def test_viewer_static_assets_are_local(self) -> None:
         index = (REPO_ROOT / "vidtolevel" / "viewer" / "web" / "index.html").read_text(
             encoding="utf-8"
@@ -80,6 +98,7 @@ class ViewerParserTests(unittest.TestCase):
             cameras_response = cameras_endpoint("run")
             self.assertEqual(len(cameras_response["cameras"]), 2)
             self.assertEqual(cameras_response["cameras"][0]["thumbnailUrl"], "/api/run/thumb/0001.jpg")
+            self.assertIn("pathIssueAfterPrevious", cameras_response["cameras"][0])
 
             points_response = points_endpoint("run")
             self.assertEqual(points_response.headers["x-vidtolevel-point-count"], "2")

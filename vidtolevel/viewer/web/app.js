@@ -37,6 +37,7 @@ const state = {
   cameraGroup: new THREE.Group(),
   frustumGroup: new THREE.Group(),
   pathLine: null,
+  pathIssueLine: null,
   selectedMarker: null,
 };
 
@@ -79,6 +80,7 @@ const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xe8a84f });
 const selectedMarkerMaterial = new THREE.MeshBasicMaterial({ color: 0xee6a5f });
 const frustumMaterial = new THREE.LineBasicMaterial({ color: 0x4cc9b0, transparent: true, opacity: 0.68 });
 const pathMaterial = new THREE.LineBasicMaterial({ color: 0xe8a84f, transparent: true, opacity: 0.9 });
+const pathIssueMaterial = new THREE.LineBasicMaterial({ color: 0xee6a5f, transparent: true, opacity: 1.0 });
 
 init();
 animate();
@@ -203,6 +205,11 @@ function clearSceneData() {
     state.pathLine.geometry.dispose();
     state.pathLine = null;
   }
+  if (state.pathIssueLine) {
+    scene.remove(state.pathIssueLine);
+    state.pathIssueLine.geometry.dispose();
+    state.pathIssueLine = null;
+  }
   state.selectedMarker = null;
   dom.selectionBody.textContent = "None";
 }
@@ -247,10 +254,17 @@ function rebuildCameraGraphics() {
     state.pathLine.geometry.dispose();
     state.pathLine = null;
   }
+  if (state.pathIssueLine) {
+    scene.remove(state.pathIssueLine);
+    state.pathIssueLine.geometry.dispose();
+    state.pathIssueLine = null;
+  }
 
   const visible = state.cameras.slice(0, state.visibleCameraCount);
   const scale = computeFrustumScale() * (Number(dom.frustumScale.value) / 20);
   const pathPositions = [];
+  const pathIssuePositions = [];
+  let previousPosition = null;
 
   for (const item of visible) {
     const position = new THREE.Vector3(...item.position);
@@ -258,22 +272,35 @@ function rebuildCameraGraphics() {
     marker.position.copy(position);
     marker.userData.camera = item;
     state.cameraGroup.add(marker);
-    pathPositions.push(position.x, position.y, position.z);
+
+    if (previousPosition) {
+      const target = item.pathIssueAfterPrevious ? pathIssuePositions : pathPositions;
+      target.push(previousPosition.x, previousPosition.y, previousPosition.z, position.x, position.y, position.z);
+    }
+    previousPosition = position;
 
     const line = makeFrustumLine(item, scale);
     state.frustumGroup.add(line);
   }
 
-  if (visible.length >= 2) {
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute("position", new THREE.Float32BufferAttribute(pathPositions, 3));
-    state.pathLine = new THREE.Line(geometry, pathMaterial);
+  if (pathPositions.length > 0) {
+    state.pathLine = makePathLine(pathPositions, pathMaterial);
     scene.add(state.pathLine);
+  }
+  if (pathIssuePositions.length > 0) {
+    state.pathIssueLine = makePathLine(pathIssuePositions, pathIssueMaterial);
+    scene.add(state.pathIssueLine);
   }
 
   updateLayerVisibility();
   dom.metricVisibleCameras.textContent = String(visible.length);
   dom.statusCameras.textContent = `${visible.length}/${state.cameras.length} cameras`;
+}
+
+function makePathLine(vertices, material) {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));
+  return new THREE.LineSegments(geometry, material);
 }
 
 function makeFrustumLine(item, scale) {
@@ -361,13 +388,16 @@ function selectCamera(event) {
   const thumbnail = item.thumbnailUrl
     ? `<img class="selection-thumb" src="${escapeAttribute(item.thumbnailUrl)}" alt="" />`
     : "";
+  const issues = item.pathIssueReasons?.length
+    ? `<br /><span class="selection-warning">Path issue: ${item.pathIssueReasons.map(escapeHtml).join(", ")}</span>`
+    : "";
   dom.selectionBody.innerHTML = `
     ${thumbnail}
     <strong>${escapeHtml(item.name)}</strong>
     Image ID ${item.id}<br />
     Camera ${item.cameraId} / ${escapeHtml(item.model)}<br />
     ${item.registeredPointCount.toLocaleString()} observed points<br />
-    ${item.width} x ${item.height}
+    ${item.width} x ${item.height}${issues}
   `;
 }
 
@@ -379,6 +409,9 @@ function updateLayerVisibility() {
   state.frustumGroup.visible = dom.layerCameras.checked;
   if (state.pathLine) {
     state.pathLine.visible = dom.layerPath.checked;
+  }
+  if (state.pathIssueLine) {
+    state.pathIssueLine.visible = dom.layerPath.checked;
   }
 }
 

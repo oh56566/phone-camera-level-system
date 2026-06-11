@@ -20,6 +20,7 @@ from vidtolevel.viewer.server.converter import (
     pack_points_binary,
 )
 from vidtolevel.viewer.server.coverage import compute_topdown_coverage
+from vidtolevel.viewer.server.diagnostics import annotate_camera_path
 
 
 @dataclass(frozen=True)
@@ -105,7 +106,7 @@ def create_viewer_app(paths: list[Path] | None = None) -> FastAPI:
                     "thumbnailUrl": thumbnail_url,
                 }
             )
-        return {"project": project.id, "cameras": payload}
+        return {"project": project.id, "cameras": annotate_camera_path(payload)}
 
     @app.get("/api/{project_id}/points")
     def points(
