@@ -52,5 +52,5 @@ Updated: 2026-06-11
 1. Phase 0 first real phone-video smoke test.
 2. Phase 4 collision upgrade: separate ground proxy from building proxies.
 3. Viewer V3 mesh preview: convert textured mesh outputs to GLB for inspection.
-4. Viewer V3 mesh preview: convert textured mesh outputs to GLB for inspection.
-5. Viewer V1 failure explanation summaries with counts per issue reason.
+4. Phase 2 failure reports: parse COLMAP/OpenMVS logs into clearer recapture guidance.
+5. Phase 6 operations: single-GPU queue locking and long-running job recovery.
